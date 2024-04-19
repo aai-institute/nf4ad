@@ -1,6 +1,6 @@
 # Uniformly Scaling Flows for Anomaly Detection
 This repository contains experiments
-investigating the use of uniformly scaling normalizing flows for anomaly
+investigating uniformly scaling normalizing flows for anomaly
 detection. We use the [VeriFlow](https://github.com/aai-institute/VeriFlow) 
 implementation of uniformly scaling flows. 
 
