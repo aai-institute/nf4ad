@@ -1,7 +1,8 @@
 # nf4ad
 Normalizing flows for anomaly detection. This repository contains experiments
 investigating the use of uniformly scaling normalizing flows for anomaly
-detection. 
+detection. We use the [VeriFlow](https://github.com/aai-institute/VeriFlow) 
+implementation of uniformly scaling flows. 
 
 # Installation
 1) Clone the repository
