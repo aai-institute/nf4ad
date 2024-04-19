@@ -1,8 +1,8 @@
 ---
 __object__: src.explib.base.ExperimentCollection
-name: mnist_ablation
+name: fashion
 experiments:
-  - &exp_nice_lu_laplace
+  - &exp_fashion
     __object__: src.explib.hyperopt.HyperoptExperiment
     name: mnist_nice_lu_laplace
     scheduler: &scheduler 
@@ -59,39 +59,3 @@ experiments:
             scale: 
               __eval__: torch.ones(784)
           use_lu: true
-  - &exp_nice_lu_normal
-    __overwrites__: *exp_nice_lu_laplace
-    name: mnist_nice_lu_normal
-    trial_config:
-      model_cfg: 
-          params:
-            base_distribution:
-              __exact__: 
-                __object__: pyro.distributions.Normal
-                loc: 
-                  __eval__: torch.zeros(100)
-                scale: 
-                  __eval__: torch.ones(100)
-  - &exp_nice_rand_laplace
-    __overwrites__: *exp_nice_lu_laplace
-    name: mnist_nice_rand_laplace
-    trial_config:
-      model_cfg: 
-        params:
-          use_lu: false
-          permutation: random
-  - &exp_nice_rand_normal
-    __overwrites__: *exp_nice_lu_laplace
-    name: mnist_nice_rand_normal
-    trial_config:
-      model_cfg: 
-        params:
-          use_lu: false
-          permutation: random
-          base_distribution: 
-            __exact__: 
-              __object__: pyro.distributions.Normal
-              loc: 
-                __eval__: torch.zeros(100)
-              scale: 
-                __eval__: torch.ones(100)
