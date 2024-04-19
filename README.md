@@ -28,4 +28,3 @@ python scripts/run-experiment.py --config experiments/<experiment>/<expconfig>.y
 where `<experiment>` is the name of the experiment and `<expconfig>` is the name
 of the configuration file for the experiment. The configuration files are
 located in the `experiments` directory.
-```
