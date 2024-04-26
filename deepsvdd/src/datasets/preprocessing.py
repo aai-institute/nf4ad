@@ -35,3 +35,19 @@ def global_contrast_normalization(x: torch.tensor, scale='l2'):
     x /= x_scale
 
     return x
+
+
+class ApplyGlobalContrastNormalization:
+    def __init__(self, scale='l1'):
+        self.scale = scale
+
+    def __call__(self, x):
+        return global_contrast_normalization(x, self.scale)
+
+
+class CheckIfOutlier:
+    def __init__(self, outlier_classes):
+        self.outlier_classes = outlier_classes
+
+    def __call__(self, x):
+        return int(x in self.outlier_classes)

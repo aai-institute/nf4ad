@@ -2,7 +2,7 @@ from torch.utils.data import Subset
 from PIL import Image
 from torchvision.datasets import MNIST
 from base.torchvision_dataset import TorchvisionDataset
-from .preprocessing import get_target_label_idx, global_contrast_normalization
+from .preprocessing import get_target_label_idx, ApplyGlobalContrastNormalization, CheckIfOutlier
 
 import torchvision.transforms as transforms
 
@@ -29,18 +29,25 @@ class MNIST_Dataset(TorchvisionDataset):
                    (-0.8280402650205075, 10.581538445782988),
                    (-0.7369959242164307, 10.697039838804978)]
 
-        # MNIST preprocessing: GCN (with L1 norm) and min-max feature scaling to [0,1]
-        transform = transforms.Compose([transforms.ToTensor(),
-                                        transforms.Lambda(lambda x: global_contrast_normalization(x, scale='l1')),
-                                        transforms.Normalize([min_max[normal_class][0]],
-                                                             [min_max[normal_class][1] - min_max[normal_class][0]])])
+        # Instantiating transformation classes
+        gcn_transform = ApplyGlobalContrastNormalization('l1')
+        outlier_transform = CheckIfOutlier(self.outlier_classes)
 
-        target_transform = transforms.Lambda(lambda x: int(x in self.outlier_classes))
+        transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Lambda(gcn_transform),
+            transforms.Normalize(
+                [min_max[normal_class][0]],  # Normalization parameters
+                [min_max[normal_class][1] - min_max[normal_class][0]]
+            )
+        ])
+
+        target_transform = transforms.Lambda(outlier_transform)
 
         train_set = MyMNIST(root=self.root, train=True, download=True,
                             transform=transform, target_transform=target_transform)
         # Subset train_set to normal class
-        train_idx_normal = get_target_label_idx(train_set.train_labels.clone().data.cpu().numpy(), self.normal_classes)
+        train_idx_normal = get_target_label_idx(train_set.targets.clone().data.cpu().numpy(), self.normal_classes)
         self.train_set = Subset(train_set, train_idx_normal)
 
         self.test_set = MyMNIST(root=self.root, train=False, download=True,
@@ -60,10 +67,7 @@ class MyMNIST(MNIST):
         Returns:
             triple: (image, target, index) where target is index of the target class.
         """
-        if self.train:
-            img, target = self.train_data[index], self.train_labels[index]
-        else:
-            img, target = self.test_data[index], self.test_labels[index]
+        img, target = self.data[index], self.targets[index]
 
         # doing this so that it is consistent with all other datasets
         # to return a PIL Image
