@@ -14,7 +14,7 @@ from datasets.main import load_dataset
 # Settings
 ################################################################################
 @click.command()
-@click.argument('dataset_name', type=click.Choice(['mnist', 'cifar10']))
+@click.argument('dataset_name', type=click.Choice(['mnist', 'cifar10', 'fashion']))
 @click.argument('net_name', type=click.Choice(['mnist_LeNet', 'cifar10_LeNet', 'cifar10_LeNet_ELU']))
 @click.argument('xp_path', type=click.Path(exists=True))
 @click.argument('data_path', type=click.Path(exists=True))
@@ -169,15 +169,16 @@ def main(dataset_name, net_name, xp_path, data_path, load_config, load_model, ob
     indices, labels, scores = np.array(indices), np.array(labels), np.array(scores)
     idx_sorted = indices[labels == 0][np.argsort(scores[labels == 0])]  # sorted from lowest to highest anomaly score
 
-    if dataset_name in ('mnist', 'cifar10'):
+    if dataset_name in ('mnist', 'cifar10', 'fashion'):
 
-        if dataset_name == 'mnist':
-            X_normals = dataset.test_set.test_data[idx_sorted[:32], ...].unsqueeze(1)
-            X_outliers = dataset.test_set.test_data[idx_sorted[-32:], ...].unsqueeze(1)
-
-        if dataset_name == 'cifar10':
-            X_normals = torch.tensor(np.transpose(dataset.test_set.test_data[idx_sorted[:32], ...], (0, 3, 1, 2)))
-            X_outliers = torch.tensor(np.transpose(dataset.test_set.test_data[idx_sorted[-32:], ...], (0, 3, 1, 2)))
+        if dataset_name in ['mnist', 'fashion']:
+            X_normals = dataset.test_set.data[idx_sorted[:32], ...].unsqueeze(1)
+            X_outliers = dataset.test_set.data[idx_sorted[-32:], ...].unsqueeze(1)
+        elif dataset_name == 'cifar10':
+            X_normals = torch.tensor(np.transpose(dataset.test_set.data[idx_sorted[:32], ...], (0, 3, 1, 2)))
+            X_outliers = torch.tensor(np.transpose(dataset.test_set.data[idx_sorted[-32:], ...], (0, 3, 1, 2)))
+        else:
+            raise Exception('Invalid dataset_name, this should never happen!')
 
         plot_images_grid(X_normals, export_img=xp_path + '/normals', title='Most normal examples', padding=2)
         plot_images_grid(X_outliers, export_img=xp_path + '/outliers', title='Most anomalous examples', padding=2)
