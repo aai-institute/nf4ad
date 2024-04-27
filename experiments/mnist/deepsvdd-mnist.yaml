@@ -1,0 +1,27 @@
+dataset_name: mnist
+normal_class: 3
+net_name: mnist_LeNet # ['mnist_LeNet', 'cifar10_LeNet', 'cifar10_LeNet_ELU']
+
+xp_path: ../deepsvdd/log/mnist_test
+data_path: ../deepsvdd/data
+
+device: cuda
+n_jobs_dataloader: 0
+
+seed: 21
+
+objective: one-class # ['one-class', 'soft-boundary']
+nu: 0.1 # Deep SVDD hyperparameter nu (must be 0 < nu <= 1) ; Only relevant for soft-boundary objective
+
+lr: 0.0001
+n_epochs: 150
+lr_milestone: 50
+batch_size: 200
+weight_decay: 0.5e-6
+
+pretrain: True
+ae_lr: 0.0001
+ae_n_epochs: 150
+ae_lr_milestone: 50
+ae_batch_size: 200
+ae_weight_decay: 0.5e-3

@@ -1,0 +1,27 @@
+dataset_name: fashion
+normal_class: 3 # 0 T-shirt/top, 1 Trouser, 2 Pullover, 3 Dress, 4 Coat, 5 Sandal, 6 Shirt, 7 Sneaker, 8 Bag, 9 Ankle boot
+net_name: mnist_LeNet # ['mnist_LeNet', 'cifar10_LeNet', 'cifar10_LeNet_ELU']
+
+xp_path: ../deepsvdd/log/fashion_test
+data_path: ../deepsvdd/data
+
+device: cuda
+n_jobs_dataloader: 0
+
+seed: 21
+
+objective: one-class # ['one-class', 'soft-boundary']
+nu: 0.1 # Deep SVDD hyperparameter nu (must be 0 < nu <= 1) ; Only relevant for soft-boundary objective
+
+lr: 0.0001
+n_epochs: 150
+lr_milestone: 50
+batch_size: 200
+weight_decay: 0.5e-6
+
+pretrain: True
+ae_lr: 0.0001
+ae_n_epochs: 150
+ae_lr_milestone: 50
+ae_batch_size: 200
+ae_weight_decay: 0.5e-3

@@ -1,0 +1,27 @@
+dataset_name: cifar10
+normal_class: 3 # 0 Airplane, 1 Automobile, 2 Bird, 3 Cat, 4 Deer, 5 Dog, 6 Frog, 7 Horse, 8 Ship, 9 Truck
+net_name: cifar10_LeNet # ['mnist_LeNet', 'cifar10_LeNet', 'cifar10_LeNet_ELU']
+
+xp_path: ../deepsvdd/log/cifar10_test
+data_path: ../deepsvdd/data
+
+device: cuda
+n_jobs_dataloader: 0
+
+seed: 21
+
+objective: one-class # ['one-class', 'soft-boundary']
+nu: 0.1 # Deep SVDD hyperparameter nu (must be 0 < nu <= 1); Only relevant for soft-boundary objective
+
+lr: 0.0001
+n_epochs: 150
+lr_milestone: 50
+batch_size: 200
+weight_decay: 0.5e-6
+
+pretrain: True
+ae_lr: 0.0001
+ae_n_epochs: 350
+ae_lr_milestone: 250
+ae_batch_size: 200
+ae_weight_decay: 0.5e-6
