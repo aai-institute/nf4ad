@@ -41,8 +41,10 @@ experiments:
           soft_training: true
           training_noise_prior:
             __object__: pyro.distributions.Uniform
-            loc: 0.0
-            scale: 0.001
+            # loc: 0.0
+            # scale: 0.001
+            low: 0.0
+            high: 0.001
           prior_scale: 1.0
           coupling_layers: &coupling_layers 
             __eval__: tune.choice([2 + i for i in range(10)])

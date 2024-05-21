@@ -105,15 +105,16 @@ class FeatureFlow(Flow):
                     device = torch.device("cpu")
 
             model = self.to(device)
+            print(model)
 
             if optim_params is not None:
-                optim = optim(model.parameters(), **optim_params) #, model.feature_encoder.trainable_layers.parameters()
+                optim = optim(model.parameters(), **optim_params) 
             else:
-                optim = optim(model.flow.trainable_layers.parameters())
+                optim = optim(model.parameters())
 
             # for param in model.parameters():
             #     if param.requires_grad:
-            #         print(f"MODEL PARAM {param.name}")
+            #         print(f"MODEL PARAM {param}")
             N = len(data_train)
 
             epoch_losses = []
