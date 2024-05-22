@@ -23,6 +23,7 @@ experiments:
       dataset: &dataset
         __object__: src.explib.datasets.MnistSplit
         digit: 3
+        flatten: false
       epochs: &epochs 200000
       patience: &patience 10
       batch_size: &batch_size 32
