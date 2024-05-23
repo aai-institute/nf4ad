@@ -1,4 +1,4 @@
-from typing import Any, Dict, Union, Tuple, Optional
+from typing import Any, Dict, Union, Tuple, Optional, Iterable
 import logging
 
 from src.veriflow.flows import Flow
@@ -69,6 +69,29 @@ class FeatureFlow(Flow):
         self.flow.to(device)
         self.feature_encoder.to(device)
         return self 
+
+    def sample(
+        self, sample_shape: Iterable[int] = None, context: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        """Returns n_sample samples from the distribution
+
+        Args:
+            n_sample: sample shape.
+        """
+        if sample_shape is None:
+            sample_shape = [1]
+
+        y = self.base_distribution.sample(sample_shape)
+        for layer in self.layers:
+            if context is not None:
+                y = layer.forward(y, context=context)
+            else:
+                y = layer.forward(y)
+
+        print(y.shape)
+        y = self.feature_encoder.reconstruct(y)
+        return y
+
 
     
     # def fit(

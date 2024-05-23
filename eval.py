@@ -8,7 +8,8 @@ import torchvision
 import matplotlib.pyplot as plt
 import numpy as np
 from src.explib.visualization import latent_radial_qqplot
-
+from src.nf4ad.flows import FeatureFlow
+from visualization import latent_radial_qqplot as latent_radial_qqplot_feat_encoder
 def show_imgs(imgs, title=None, row_size=4):
      
     # Form a grid of pictures (we use max. 8 columns)
@@ -67,23 +68,31 @@ class Evaluation():
         model_hparams = self.config["model_cfg"]["params"]
         model = self.config["model_cfg"]["type"](**model_hparams)
         model.load_state_dict(state_dict)
-        
+         
         # Evaluate best model
         self._test_best_model(model, data_test, device)
+        
+        # QQplots
+        self._qqplot(model, data_test)
   
     
     # TODO: add type of input arguments
     def _test_best_model(self, best_model, data, device, im_shape=(28, 28)):
          
-        # Visualize sampled image
-        # sample = best_model.sample(sample_shape=[1]).cpu().detach().numpy()
-        # np.save("sample.npy", sample)
+        sample = best_model.sample(sample_shape=[1]).cpu().detach().numpy()
         
-        sample = np.load("sample.npy")
+        if isinstance(best_model, FeatureFlow):
+            sample = sample.squeeze()
+        else:
+            sample = sample.reshape(*im_shape) #sample_shape=[1]
         
-        sample = sample.reshape(*im_shape) #sample_shape=[1]
-        sample = np.uint8(np.clip(sample, 0, 1) * 255)
+            
+        
          
+            
+        # np.save("sample.npy", sample)
+        sample = np.uint8(np.clip(sample, 0, 1) * 255)
+            
         plt.imshow(sample, cmap="gray")
         plt.show()
     
@@ -98,6 +107,12 @@ class Evaluation():
         
         # print(test_loss)
         
-        latent_radial_qqplot({"best_model": best_model}, data, p=1, n_samples=4, save_to=None)
+    def _qqplot(self, best_model, data, p=1, n_samples=4, save_to = None):
+        
+        print(type(best_model))
+        if isinstance(best_model, FeatureFlow):
+            latent_radial_qqplot_feat_encoder({"best_model": best_model}, data, p, n_samples, save_to)
+        else:
+            latent_radial_qqplot({"best_model": best_model}, data, p, n_samples, save_to)
         
       

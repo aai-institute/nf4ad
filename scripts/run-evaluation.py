@@ -1,7 +1,8 @@
 import os
 
-print(os.getcwd())
 import typing as T
+import sys
+sys.path.append(os.getcwd())
 
 import click
  
