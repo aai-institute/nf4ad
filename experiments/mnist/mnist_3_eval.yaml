@@ -1,14 +1,13 @@
-name: mnist_ablation
+name: mnist_ablation_3
 experiment:
   dataset: &dataset
     __object__: src.explib.datasets.MnistSplit
-    #digit: 3
-  
+    digit: 3
   model_cfg: 
     type:
       __class__: &model src.veriflow.flows.NiceFlow
     params:
-      soft_training: true #TODO: I think at test phase we don't need this soft training flag to true
+      soft_training: true
       training_noise_prior:
         __object__: pyro.distributions.Uniform
         low: 
@@ -18,12 +17,18 @@ experiment:
       coupling_layers: 10
       coupling_nn_layers: [300, 300, 300] 
       nonlinearity: &nonlinearity 
-        __eval__: torch.nn.ReLU()  
+        __eval__: torch.nn.ReLU()
       split_dim: 392
       base_distribution: 
-        __object__: pyro.distributions.Laplace
+        __object__: src.veriflow.distributions.RadialDistribution       
+        device: cpu
+        p: 1.0
         loc: 
           __eval__: torch.zeros(784).to("cpu")
-        scale: 
-          __eval__: torch.ones(784).to("cpu")          
-      use_lu: true 
+        norm_distribution:
+          __object__: pyro.distributions.LogNormal
+          loc: 
+            __eval__: torch.zeros(1).to("cpu")
+          scale: 
+            __eval__: (.5 * torch.ones(1)).to("cpu")
+      use_lu: true
