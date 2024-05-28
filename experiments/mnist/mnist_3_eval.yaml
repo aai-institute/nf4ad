@@ -1,5 +1,6 @@
 name: mnist_ablation_3
 experiment:
+  device: cuda
   dataset: &dataset
     __object__: src.explib.datasets.MnistSplit
     digit: 3
@@ -21,14 +22,14 @@ experiment:
       split_dim: 392
       base_distribution: 
         __object__: src.veriflow.distributions.RadialDistribution       
-        device: cpu
+        device: cuda
         p: 1.0
         loc: 
-          __eval__: torch.zeros(784).to("cpu")
+          __eval__: torch.zeros(784).to("cuda")
         norm_distribution:
           __object__: pyro.distributions.LogNormal
           loc: 
-            __eval__: torch.zeros(1).to("cpu")
+            __eval__: torch.zeros(1).to("cuda")
           scale: 
-            __eval__: (.5 * torch.ones(1)).to("cpu")
+            __eval__: (.5 * torch.ones(1)).to("cuda")
       use_lu: true

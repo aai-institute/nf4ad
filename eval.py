@@ -31,7 +31,7 @@ def show_imgs(imgs, saveto, title=None, row_size=10): # TODO: decide default row
         plt.title(title)
     
     if saveto:
-        plt.savefig(saveto, title)
+        plt.savefig(saveto + title)
     
     plt.show()
     plt.close()
@@ -41,8 +41,7 @@ class Evaluation():
 
     def __init__(
         self,
-        config: Dict[str, Any],
-        device: str = "cpu", 
+        config: Dict[str, Any]
     ) -> None:
         """Initialize hyperparameter optimization experiment.
 
@@ -50,12 +49,13 @@ class Evaluation():
             config (Dict[str, Any]): configuration
             device: str: Torch device
         """
+        print(config)
         self.name = config["name"]
         self.config = config["experiment"]
-        self.device = device
+        self.device = self.config["device"]
     
 
-    def conduct(self, report_dir: os.PathLike, device: torch.device = torch.device("cpu"), n_samples = 100, saveto=None): # TODO: put n_sampeles as an input arg
+    def conduct(self, report_dir: os.PathLike, n_samples = 100):   #TODO check input arg for device
         """Run the evaluation experiment.
 
         Args:
@@ -76,18 +76,21 @@ class Evaluation():
         print(self.config["model_cfg"]["type"])
         model = self.config["model_cfg"]["type"](**model_hparams)
         model.load_state_dict(state_dict)
+        
+        model.to(self.device)
          
         # Evaluate best model
-        self._test_best_model(model, data_test, device, n_samples, saveto=saveto)
+        self._test_best_model(model, data_test, n_samples, saveto=report_dir)
         
         # QQplots
-        self._qqplot(model, data_test, n_samples, saveto=saveto)
+        self._qqplot(model, data_test, n_samples, saveto=report_dir)
   
     
     # TODO: add type of input arguments
-    def _test_best_model(self, best_model, data, device, n_samples, im_shape=(28, 28), saveto=None):
+    def _test_best_model(self, best_model, data, n_samples, im_shape=(28, 28), saveto=None):
          
         samples = best_model.sample(sample_shape=[n_samples]).cpu().detach().numpy() 
+        #samples = best_model.sample(sample_shape=[n_samples]).detach().numpy() 
         if isinstance(best_model, FeatureFlow):
             samples = samples.squeeze()
         else:
@@ -95,7 +98,7 @@ class Evaluation():
         
         samples = np.uint8(np.clip(samples, 0, 1) * 255)
         
-        show_imgs(torch.tensor(samples).unsqueeze(1), saveto)
+        show_imgs(torch.tensor(samples).unsqueeze(1), saveto, title="img_samples.png")
        
         plt.imshow(samples[0], cmap="gray")
         plt.show()
@@ -105,13 +108,13 @@ class Evaluation():
         for i in range(0, len(data), 100):
             j = min([len(data), i + 100])
             test_loss += float(
-                -best_model.log_prob(data[i:j][0].to(device)).sum()
+                -best_model.log_prob(data[i:j][0].to(self.device)).sum()
             )
         test_loss /= len(data)
         
         print(test_loss)
         
-    def _qqplot(self, best_model, data, n_samples, p=1, saveto = None):
+    def _qqplot(self, best_model, data, n_samples, p=1, saveto=None):
         
         if isinstance(best_model, FeatureFlow):
             latent_radial_qqplot_feat_encoder({"best_model": best_model}, data, p, n_samples, saveto)
