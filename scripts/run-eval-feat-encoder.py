@@ -1,16 +1,14 @@
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "4"
-
+import typing as T
 import sys
 sys.path.append(os.getcwd())
 
-import typing as T
-
 import click
-
-from src.explib.config_parser import read_config
  
-from eval import Evaluation
+from src.explib.config_parser import read_config
+from eval_feat_encoder import Evaluation
+
 Pathable = T.Union[str, os.PathLike]  # In principle one can cast it to os.path.Path
 import torch 
 torch.autograd.set_detect_anomaly(True)
@@ -30,14 +28,12 @@ def run(report_dir: Pathable, config: Pathable):
     sepline = "\n" + ("-" * 80) + "\n" + ("-" * 80) + "\n"
     print(f"{sepline}Parsing config file:{sepline}")
     config = os.path.abspath(config)
-    experiment = read_config(config)
-     
+    evaluation_config = read_config(config)
     print(f"{sepline}Done.{sepline}")
-      
+    
     print(f"{sepline}Conducting evaluation{sepline}")
     # Conduct evaluation
-    
-    evaluation = Evaluation(experiment)
+    evaluation = Evaluation(evaluation_config)
     evaluation.conduct(report_dir)
     print(f"{sepline}Done.{sepline}")
 

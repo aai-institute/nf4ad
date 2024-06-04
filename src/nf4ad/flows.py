@@ -1,6 +1,6 @@
 from typing import Any, Dict, Union, Tuple, Optional, Iterable
 import logging
-
+import os
 from src.veriflow.flows import Flow
 from src.explib.config_parser import from_checkpoint
 import torch  
@@ -15,7 +15,7 @@ class FeatureFlow(Flow):
     def __init__(
         self, 
         flow: Flow, 
-        feature_encoder_ckpt: Union[Module, Tuple[str, str]]
+        pretrained_feature_encoder: str
     ):
         """Implements a flow on the latent space of a feature extractor.
         Both models are trained jointly by the fit method. Supports 
@@ -23,20 +23,16 @@ class FeatureFlow(Flow):
         
         Args:
             flow (Flow): The flow to be applied on the latent space.
-            feature_encoder (Union[Module, Tuple[str, str]]): The feature
-                extractor to be used. If a tuple, it is assumed to be a
-                (model_arch, model_state_dict) pair.
+            pretrained_feature_encoder (str): The feature
+                extractor checkpoint to be used.  
         """
         super(FeatureFlow, self).__init__(flow.base_distribution, flow.layers, flow.soft_training, flow.training_noise_prior)
         self.flow = flow
         self.feature_encoder = FeatureEncoder()
-        if isinstance(feature_encoder_ckpt, str): 
-            checkpoint = torch.load(feature_encoder_ckpt)
-            self.feature_encoder.load_state_dict(checkpoint["ae_net_dict"])
-            
-        else:
-            # TODO exception
-            logging.ERROR("Need a path to the tar folder")
+         
+        checkpoint = torch.load(os.path.abspath(pretrained_feature_encoder))
+        self.feature_encoder.load_state_dict(checkpoint["ae_net_dict"])
+        
      
         # TODO: check how to change the way trainable layers is created. Here needs to be flow layers + feature encoder layer
         self.trainable_layers = torch.nn.ModuleList(
@@ -54,7 +50,10 @@ class FeatureFlow(Flow):
             Tensor: The log probability of the samples.
         """ 
         # TODO: understand how to pass the digit number to find the right min max values for normalization. need to change something in the base class fit module
-        z = self.feature_encoder(feature_encoder_transform(x.unsqueeze(1), digit=3))
+        x = x.reshape(x.shape[0], 28, 28).unsqueeze(1)
+        z = self.feature_encoder(feature_encoder_transform(x, digit=3))
+        print(f"Z {z[0]}")
+        print(z.shape)
         return self.flow.log_prob(z.reshape(z.shape[0], -1))
     
     def to(self, device: torch.device):
@@ -66,6 +65,7 @@ class FeatureFlow(Flow):
         Returns:
             FeatureFlow: The model.
         """
+        self.device = device
         self.flow.to(device)
         self.feature_encoder.to(device)
         return self 
@@ -82,14 +82,16 @@ class FeatureFlow(Flow):
             sample_shape = [1]
 
         y = self.base_distribution.sample(sample_shape)
+        
         for layer in self.layers:
             if context is not None:
                 y = layer.forward(y, context=context)
             else:
                 y = layer.forward(y)
-
-        print(y.shape)
+ 
+       
         y = self.feature_encoder.reconstruct(y)
+      
         return y
 
 

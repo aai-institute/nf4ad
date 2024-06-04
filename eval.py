@@ -1,58 +1,37 @@
 
 import os
- 
+import typing as T
 from typing import Any, Dict
 import math
 import torch 
 import torchvision
 import matplotlib.pyplot as plt
 import numpy as np
-from src.explib.visualization import latent_radial_qqplot
-from src.nf4ad.flows import FeatureFlow
-from visualization import latent_radial_qqplot as latent_radial_qqplot_feat_encoder
-def show_imgs(imgs, saveto, title=None, row_size=10): # TODO: decide default row_size and pass it from the main code based on number of samples
-     
-    # Form a grid of pictures (we use max. 8 columns)
-    num_imgs = imgs.shape[0] if isinstance(imgs, torch.Tensor) else len(imgs)
-   
-    is_int = imgs.dtype==torch.int32 if isinstance(imgs, torch.Tensor) else imgs[0].dtype==torch.int32
-    nrow = min(num_imgs, row_size)
-    ncol = int(math.ceil(num_imgs/nrow))
-    imgs = torchvision.utils.make_grid(imgs, nrow=nrow, pad_value=128 if is_int else 0.5)
-    print(imgs.shape)
-   
-    np_imgs = imgs.cpu().numpy()
-    print(np_imgs.shape)
-    # Plot the grid
-    plt.figure(figsize=(1.5*nrow, 1.5*ncol))
-    plt.imshow(np.transpose(np_imgs, (1,2, 0)), interpolation='nearest')
-    plt.axis('off')
-    if title is not None:
-        plt.title(title)
-    
-    if saveto:
-        plt.savefig(saveto + title)
-    
-    plt.show()
-    plt.close()
-    
+# TODO: for the moment couldn't use functions from USFlows/explib. Need to modify them
+#from src.explib.visualization import latent_radial_qqplot, plot_digits
+from visualization import latent_radial_qqplot, plot_digits, show_imgs
+from src.nf4ad.flows import FeatureFlow, Flow
+from src.explib.base import Experiment
+import pandas as pd 
+
+# TODO: general. Input/output arguments type and documentations for class and method
+       
 class Evaluation():
     """Evaluation."""
 
     def __init__(
         self,
-        config: Dict[str, Any]
+        experiments: T.Iterable[Experiment],
+        device: torch.device = "cuda"
     ) -> None:
         """Initialize hyperparameter optimization experiment.
 
         Args:
-            config (Dict[str, Any]): configuration
-            device: str: Torch device
+            # TODO
         """
-        print(config)
-        self.name = config["name"]
-        self.config = config["experiment"]
-        self.device = self.config["device"]
+         
+        self.experiments = experiments  
+        self.device = device
     
 
     def conduct(self, report_dir: os.PathLike, n_samples = 100):   #TODO check input arg for device
@@ -61,47 +40,58 @@ class Evaluation():
         Args:
             report_dir (os.PathLike): report directory
         """
-          
+        
+        sepline = "\n" + ("-" * 80) + "\n" + ("-" * 80) + "\n"
+        
         # Load test dataset 
-        dataset = self.config["dataset"]
+        dataset = self.experiments.experiments[0].trial_config["dataset"]
         data_test = dataset.get_test()
-        # imgs = [data_test[i][0].reshape(1, 28, 28) for i in range(8)]
-        # show_imgs(imgs)
-         
-        # Load model
-        state_dict = torch.load(os.path.join(report_dir, "best_model.pt"), map_location=torch.device(self.device))
         
-        model_hparams = self.config["model_cfg"]["params"]
-        print(f"MODEL PARAMS {model_hparams}")
-        print(self.config["model_cfg"]["type"])
-        model = self.config["model_cfg"]["type"](**model_hparams)
-        model.load_state_dict(state_dict)
+        models = {}
+        losses = {}
+        for experiment in self.experiments.experiments:
+            
+            # TODO: use a logger ? 
+            print(f"Evaluating experiment: {experiment.name}")
+            
+            state_dict = torch.load(os.path.join(report_dir, f"0_{experiment.name}", "best_model.pt"), map_location=torch.device(self.device))
+            
+            model_hparams = experiment.trial_config["model_cfg"]["params"]
+            model = experiment.trial_config["model_cfg"]["type"](**model_hparams)
+            model.load_state_dict(state_dict)
+            model.to(self.device)
+            
+            models[experiment.name] = model
+            
+            # Evaluate best model
+            imgs, test_loss = self._test_best_model(model, data_test, n_samples, saveto=os.path.join(report_dir, f"0_{experiment.name}/"), title=f"img_samples_{experiment.name}.png")
+            losses[experiment.name] = test_loss
+            models[experiment.name] = model
         
-        model.to(self.device)
-         
-        # Evaluate best model
-        self._test_best_model(model, data_test, n_samples, saveto=report_dir)
+        # Reconstruct images
+        plot_digits(models, save_to=f"{report_dir}/samples_comparison.png")
         
         # QQplots
-        self._qqplot(model, data_test, n_samples, saveto=report_dir)
-  
-    
-    # TODO: add type of input arguments
-    def _test_best_model(self, best_model, data, n_samples, im_shape=(28, 28), saveto=None):
+        self._qqplot(models, data_test, n_samples, saveto=f"{report_dir}/qqplots.png")
          
-        samples = best_model.sample(sample_shape=[n_samples]).cpu().detach().numpy() 
-        #samples = best_model.sample(sample_shape=[n_samples]).detach().numpy() 
+        # Test losses
+        df = pd.DataFrame(losses, index=[0])
+        print(f"{sepline}Test loss{sepline}\n{df}")
+        
+        ax = df.plot.bar()
+        ax.figure.savefig(f"{report_dir}/test_losses.png")
+       
+       
+    def _test_best_model(self, best_model, data, n_samples, im_shape=(28, 28), saveto=None, title=None):
+         
+        samples = best_model.sample(sample_shape=[n_samples]).cpu().detach().numpy()  
         if isinstance(best_model, FeatureFlow):
             samples = samples.squeeze()
         else:
-            samples = samples.reshape(-1, *im_shape) #sample_shape=[1]
-        
+            samples = samples.reshape(-1, *im_shape)
+
         samples = np.uint8(np.clip(samples, 0, 1) * 255)
-        
-        show_imgs(torch.tensor(samples).unsqueeze(1), saveto, title="img_samples.png")
-       
-        plt.imshow(samples[0], cmap="gray")
-        plt.show()
+        samples_grid = show_imgs(torch.tensor(samples).unsqueeze(1), saveto, title=title)
         
         # Compute the test loss
         test_loss = 0
@@ -112,13 +102,10 @@ class Evaluation():
             )
         test_loss /= len(data)
         
-        print(test_loss)
+        return samples_grid, test_loss
         
-    def _qqplot(self, best_model, data, n_samples, p=1, saveto=None):
+    def _qqplot(self, models: dict[str, Flow], data, n_samples, p=1, saveto=None):
         
-        if isinstance(best_model, FeatureFlow):
-            latent_radial_qqplot_feat_encoder({"best_model": best_model}, data, p, n_samples, saveto)
-        else:
-            latent_radial_qqplot({"best_model": best_model}, data, p, n_samples, saveto)
+        curves = latent_radial_qqplot(models, data, p, n_samples, saveto)
         
-      
+        return curves

@@ -97,6 +97,7 @@ class FeatureEncoder(torch.nn.Module):
         return x
     
     def reconstruct(self, x):
+         
         x = x.view(x.size(0), int(self.rep_dim / 16), 4, 4)
         x = F.interpolate(F.leaky_relu(x), scale_factor=2)
         x = self.deconv1(x)
@@ -105,5 +106,5 @@ class FeatureEncoder(torch.nn.Module):
         x = F.interpolate(F.leaky_relu(self.bn4(x)), scale_factor=2)
         x = self.deconv3(x)
         x = torch.sigmoid(x)
-
+        
         return x

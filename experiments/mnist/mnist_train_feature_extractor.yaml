@@ -1,39 +1,39 @@
----
+# ---
 __object__: src.explib.base.ExperimentCollection
-name: mnist
+name: mnist_ablation
 experiments:
-  - &exp_mnist
+  - &exp_rad_logN
     __object__: src.explib.hyperopt.HyperoptExperiment
-    name: mnist_nice_lu_laplace
+    name: mnist_3_radial_logN
+    device: cuda
     scheduler: &scheduler 
       __object__: ray.tune.schedulers.ASHAScheduler
       max_t: 1000000
       grace_period: 1000000
       reduction_factor: 2
     num_hyperopt_samples: &num_hyperopt_samples 1
-    gpus_per_trial: &gpus_per_trial 0
-    cpus_per_trial: &cpus_per_trial 8
+    gpus_per_trial: &gpus_per_trial 1
+    cpus_per_trial: &cpus_per_trial 1
     tuner_params: &tuner_params
       metric: val_loss
       mode: min
     trial_config:
       logging:
-        images: false #FIXME: put to false because needs to be changed if using the feature encoder
+        images: false # TODO: img_sample doesn't work so far with feat encoder. We need to modify the code
         "image_shape": [28, 28]
       dataset: &dataset
         __object__: src.explib.datasets.MnistSplit
         digit: 3
-        flatten: false
       epochs: &epochs 200000
-      patience: &patience 10
-      batch_size: &batch_size 32
-        #__eval__: tune.choice([32])
+      patience: &patience 5 # maybe even more?
+      batch_size: &batch_size 
+        __eval__: tune.choice([32])
       optim_cfg: &optim 
         optimizer:
           __class__: torch.optim.Adam 
         params:
           lr: 
-            __eval__: tune.loguniform(1e-5, 1e-3)
+            __eval__: 1e-4
           weight_decay: 0.0
       
       model_cfg: 
@@ -45,28 +45,30 @@ experiments:
               soft_training: true
               training_noise_prior:
                 __object__: pyro.distributions.Uniform
-                low: 0.0
-                high: 1.0
-                # FIXME: these values don't work for the pyro Uniform distribution
-                # loc: 0.0
-                # scale: 0.001
-              prior_scale: 1.0
-              coupling_layers: &coupling_layers 4
-                #__eval__: tune.choice([4])
-              coupling_nn_layers: &coupling_nn_layers [100, 100]
-                #__eval__: "tune.choice([[w] * l for w in range(100, 201, 100) for l in range(1, 4)])" # tune.choice([[c*32, c*16, c*8, c*16, c*32] for c in [1, 2, 3, 4]] + [[c*64, c*32, c*64]  for c in range(1,5)] + [[c*128] * 2 for c in range(1,5)] + [[c*256] for c in range(1,5)])
+                low: 
+                  __eval__: 1e-20
+                high: 0.01
+ 
+              prior_scale: 1.10
+              coupling_layers: &coupling_layers 10 
+              coupling_nn_layers: &coupling_nn_layers [300, 300, 300] 
               nonlinearity: &nonlinearity  
-                __eval__: torch.nn.ReLU() #tune.choice([torch.nn.ReLU()])
-              split_dim: &split_dim 50
-                #__eval__: tune.choice([50])
+                __eval__: torch.nn.ReLU()
+              split_dim: &split_dim 392
               base_distribution: 
-                __object__: pyro.distributions.Normal
+                __object__: src.veriflow.distributions.RadialDistribution       
+                device: cuda
+                p: 1.0
                 loc: 
-                  __eval__: torch.zeros(32)
-                scale: 
-                  __eval__: torch.ones(32)
+                  __eval__: torch.zeros(32).to("cuda")
+                norm_distribution:
+                  __object__: pyro.distributions.LogNormal
+                  loc: 
+                    __eval__: torch.zeros(1).to("cuda")
+                  scale: 
+                    __eval__: (.5 * torch.ones(1)).to("cuda")
               use_lu: true
 
-            feature_encoder_ckpt: &feature_encoder /Users/giorgiapitteri/Downloads/model.tar
+            pretrained_feature_encoder: &pretrained_feature_encoder /home/giorgia/nf4ad/data/pretrained/feature_encoder/model.tar
 
        
