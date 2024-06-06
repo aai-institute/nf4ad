@@ -52,8 +52,7 @@ class FeatureFlow(Flow):
         # TODO: understand how to pass the digit number to find the right min max values for normalization. need to change something in the base class fit module
         x = x.reshape(x.shape[0], 28, 28).unsqueeze(1)
         z = self.feature_encoder(feature_encoder_transform(x, digit=3))
-        print(f"Z {z[0]}")
-        print(z.shape)
+     
         return self.flow.log_prob(z.reshape(z.shape[0], -1))
     
     def to(self, device: torch.device):

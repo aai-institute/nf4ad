@@ -26,7 +26,7 @@ experiments:
         __object__: src.explib.datasets.MnistSplit
         digit: 3
       epochs: &epochs 200000
-      patience: &patience 10 # maybe even more?
+      patience: &patience 5 # maybe even more?
       batch_size: &batch_size 
         __eval__: tune.choice([32])
       optim_cfg: &optim 
