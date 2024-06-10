@@ -8,8 +8,8 @@ import torchvision
 import matplotlib.pyplot as plt
 import numpy as np
 # TODO: for the moment couldn't use functions from USFlows/explib. Need to modify them
-#from src.explib.visualization import latent_radial_qqplot, plot_digits
-from visualization import latent_radial_qqplot, plot_digits, show_imgs
+from src.explib.visualization import latent_radial_qqplot # using USFlows functions
+from visualization import show_imgs, plot_digits #, latent_radial_qqplot # using nf4ad functions (adapted with the featureflow possibility)
 from src.nf4ad.flows import FeatureFlow, Flow
 from src.explib.base import Experiment
 import pandas as pd 
@@ -49,6 +49,7 @@ class Evaluation():
         nominal_dataset = self.experiments.experiments[0].trial_config["dataset"]
         nominal_data_test = nominal_dataset.get_test()
         
+        # Load all MNIST dataset for AD metrics
         dataset_type = type(nominal_dataset)
         ad_dataset = dataset_type()
         ad_data_test = ad_dataset.get_test() # TODO: evaluate only on test portion of Mnist?
@@ -56,27 +57,28 @@ class Evaluation():
         models = {} 
         for i, experiment in enumerate(self.experiments.experiments):
             
+
             print(f"Evaluating experiment: {experiment.name}") 
-            
             ckpt = glob.glob(os.path.join(report_dir, f"{i}_{experiment.name}") + "/*best_model.pt")
-            print(os.path.join(report_dir, f"{i}_{experiment.name}"))
+            
             if len(ckpt) == 0:
                 continue
-            
+           
+            # Load model
             state_dict = torch.load(ckpt[0], map_location=torch.device(self.device))
             
             model_hparams = experiment.trial_config["model_cfg"]["params"]
             model = experiment.trial_config["model_cfg"]["type"](**model_hparams)
+             
             model.load_state_dict(state_dict)
             model.to(self.device)
-            
             models[experiment.name] = model
-        
+
         # Reconstruct images
         plot_digits(models, save_to=f"{report_dir}/samples_comparison.png")
         
         # QQplots
-        self._qqplot(models, nominal_data_test, n_samples, saveto=f"{report_dir}/qqplots.png")
+        self._qqplot(models, nominal_data_test, n_samples, p=1, saveto=f"{report_dir}/qqplots.png")
          
         # Test losses
         losses = self._test_losses(models, nominal_data_test)
@@ -129,10 +131,8 @@ class Evaluation():
             fpr[name], tpr[name], _ = roc_curve(y_onehot_test, scores)
             roc_auc[name] = auc(fpr[name], tpr[name])
 
-        # First aggregate all false positive rates
         all_fpr = np.unique(np.concatenate([fpr[name] for name in models.keys()]))
-
-        # Then interpolate all ROC curves at this points
+ 
         mean_tpr = np.zeros_like(all_fpr)
         for name in models.keys():
             mean_tpr += np.interp(all_fpr, fpr[name], tpr[name])

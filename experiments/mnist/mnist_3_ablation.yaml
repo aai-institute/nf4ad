@@ -104,7 +104,7 @@ experiments:
                 __eval__: (.5 * torch.ones(1)).to("cuda")
   - &exp_rad_logN_p_1_loc_2
     __overwrites__: *exp_rad_logN
-    name: mnist_3_radial_logN_p_inf
+    name: mnist_3_radial_logN_p_1_loc_2
     trial_config:
       model_cfg: 
         params:
@@ -122,7 +122,7 @@ experiments:
                 __eval__: (.5 * torch.ones(1)).to("cuda")
   - &exp_rad_logN_p_1_loc_3
     __overwrites__: *exp_rad_logN
-    name: mnist_3_radial_logN_p_inf
+    name: mnist_3_radial_logN_p_1_loc_3
     trial_config:
       model_cfg: 
         params:

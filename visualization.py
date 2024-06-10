@@ -44,6 +44,10 @@ class FakeModelWithFeatureEncoder(torch.nn.Module):
         print(f"DATA SHAPE {data.shape}")
         return data
 
+import numpy as np 
+import statsmodels.api as sm 
+      
+  
 
 def latent_radial_qqplot(models: Dict[str, Flow], data: datasets, p, n_samples, save_to=None):
     """Plots a QQ-plot of the empirical and theoretical distribution of the L_p norm of the latent variables.
@@ -69,21 +73,29 @@ def latent_radial_qqplot(models: Dict[str, Flow], data: datasets, p, n_samples, 
         if isinstance(model, FeatureFlow):
             fakemodel = FakeModelWithFeatureEncoder(data, model.feature_encoder, model.device)
             true_samples = fakemodel.sample((n_samples,))
-            
+            print(f"true {true_samples}")
+
             learned_samples =  model.flow.sample((n_samples,))
+            
+            print(f"learned {learned_samples}")
             model.flow.export = "backward"
             true_latent_norms = norm(model.flow.forward(true_samples.to(model.device)), p).sort()[0].cpu().detach()
             learned_latent_norms = norm(model.flow.forward(learned_samples), p).sort()[0].cpu().detach()
         else:
             learned_samples =  model.sample((n_samples,))
-            model.export = "backward" 
+            model.export = "backward"  
             true_latent_norms = norm(model.forward(true_samples.to(model.device)), p).sort()[0].cpu().detach()
             learned_latent_norms = norm(model.forward(learned_samples), p).sort()[0].cpu().detach()
-
-
+            print(true_latent_norms)
+            print(learned_latent_norms)
         def cdf(r, samples):
+            # print("inside cdf")
+            # print(r)
+            # print(f"samples {samples}")
+            # print(samples <= r)
             return (samples <= r).sum()/samples.shape[0]
 
+        #print(f"true norms {true_latent_norms}")
         tqs = [cdf(r, true_latent_norms).detach() for r in true_latent_norms] 
         lqs = [cdf(r, learned_latent_norms).detach() for r in true_latent_norms] 
 
@@ -95,6 +107,9 @@ def latent_radial_qqplot(models: Dict[str, Flow], data: datasets, p, n_samples, 
         plt.savefig(save_to)
     plt.show()
     
+    fig = sm.qqplot(true_latent_norms, line ='45') 
+    plt.show()
+    plt.savefig("./tmp.png")
 
 def show_imgs(imgs, saveto=None, title=None, row_size=10): # TODO: decide default row_size and pass it from the main code based on number of samples
      
@@ -137,8 +152,12 @@ def plot_digits(models: dict[str, Flow], n_samples=100, im_shape=(28, 28), save_
         ncols = len(models)
         nrows = 1 # todo: do the sqrt
         figsize = (7 * ncols, 25)
+        
         fig, axes = plt.subplots(nrows, ncols, figsize=figsize)
         
+        if not isinstance(axes, np.ndarray):
+            axes = np.array([axes])
+             
         for exp, ax in zip(models.keys(), axes.T):
               
             model = models[exp]

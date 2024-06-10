@@ -1,6 +1,6 @@
 # ---
 __object__: src.explib.base.ExperimentCollection
-name: mnist_ablation
+name: mnist_featureflow
 experiments:
   - &exp_rad_logN
     __object__: src.explib.hyperopt.HyperoptExperiment
