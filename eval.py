@@ -87,7 +87,7 @@ class Evaluation():
         ax.figure.savefig(f"{report_dir}/test_losses.png")
         
         # AD metrics
-        self._compute_auc_score(models, ad_data_test, nominal_value=nominal_dataset.digit, saveto=f"{report_dir}/roc_auc.png")
+        # self._compute_auc_score(models, ad_data_test, nominal_value=nominal_dataset.digit, saveto=f"{report_dir}/roc_auc.png")
        
        
     def _test_losses(self, models, data):
