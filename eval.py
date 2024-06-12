@@ -25,7 +25,7 @@ class Evaluation():
     def __init__(
         self,
         experiments: T.Iterable[Experiment],
-        device: torch.device = "cuda"
+        device: torch.device = "cpu"
     ) -> None:
         """Initialize hyperparameter optimization experiment.
 
