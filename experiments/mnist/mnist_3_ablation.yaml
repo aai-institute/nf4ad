@@ -23,12 +23,13 @@ experiments:
         images: true
         "image_shape": [28, 28]
       dataset: &dataset
-        __object__: src.explib.datasets.MnistSplit
+        __object__: src.explib.datasets_v2.MnistSplit
         digit: 3
+        device: cuda
       epochs: &epochs 200000
       patience: &patience 5 # maybe even more?
       batch_size: &batch_size 
-        __eval__: tune.choice([32])
+        __eval__: tune.choice([128])
       optim_cfg: &optim 
         optimizer:
           __class__: torch.optim.Adam 
@@ -41,12 +42,14 @@ experiments:
         type:
           __class__: &model src.veriflow.flows.NiceFlow
         params:
+          device: cuda
           soft_training: true
           training_noise_prior:
             __object__: pyro.distributions.Uniform
             low: 
-              __eval__: 1e-20
-            high: 0.01
+              __eval__: 1e-20 * torch.ones(1).to("cuda") #1e-20
+            high: 
+              __eval__: 0.01 * torch.ones(1).to("cuda") #0.01
           prior_scale: 1.0
           coupling_layers: 10
           coupling_nn_layers: [300, 300, 300] 
