@@ -162,5 +162,6 @@ cython_debug/
 .DS_Store
 data/
 reports/
+nohup.out
 src/.DS_store
 experiments/.DS_Store
