@@ -17,7 +17,7 @@ torch.autograd.set_detect_anomaly(True)
 
 @click.command()
 @click.option("--report_dir", default="./reports", help="Report file")
-@click.option("--config", default="./config.yaml", help="Prefix for config items")
+@click.option("--config", default="./config.yaml", help="Prefix for config items") 
 def run(report_dir: Pathable, config: Pathable):
     """Loads an experiment from config file conducts the experiment it.
 

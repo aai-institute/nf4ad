@@ -10,13 +10,16 @@ import numpy as np
 # TODO: for the moment couldn't use functions from USFlows/explib. Need to modify them
 from src.explib.visualization import latent_radial_qqplot # using USFlows functions
 from visualization import show_imgs, plot_digits #, latent_radial_qqplot # using nf4ad functions (adapted with the featureflow possibility)
-from src.nf4ad.flows import FeatureFlow, Flow
+from src.nf4ad.flows import FeatureFlow
+from src.veriflow.flows import Flow
+from src.veriflow.distributions import RadialDistribution
 from src.explib.base import Experiment
 import pandas as pd 
 from sklearn.preprocessing import LabelBinarizer
 from sklearn.metrics import RocCurveDisplay, roc_auc_score, roc_curve, auc
 from itertools import cycle
 import glob
+import numpy as np
 # TODO: general. Input/output arguments type and documentations for class and method
        
 class Evaluation():
@@ -25,7 +28,7 @@ class Evaluation():
     def __init__(
         self,
         experiments: T.Iterable[Experiment],
-        device: torch.device = "cpu"
+        device: torch.device = "cuda"
     ) -> None:
         """Initialize hyperparameter optimization experiment.
 
@@ -59,8 +62,8 @@ class Evaluation():
             
 
             print(f"Evaluating experiment: {experiment.name}") 
-            ckpt = glob.glob(os.path.join(report_dir, f"{i}_{experiment.name}") + "/*best_model.pt")
             
+            ckpt = glob.glob(os.path.join(report_dir, f"{i}_{experiment.name}") + "/*best_model.pt")
             if len(ckpt) == 0:
                 continue
            
@@ -68,8 +71,9 @@ class Evaluation():
             state_dict = torch.load(ckpt[0], map_location=torch.device(self.device))
             
             model_hparams = experiment.trial_config["model_cfg"]["params"]
+            print(model_hparams)
             model = experiment.trial_config["model_cfg"]["type"](**model_hparams)
-             
+                
             model.load_state_dict(state_dict)
             model.to(self.device)
             models[experiment.name] = model
@@ -78,7 +82,7 @@ class Evaluation():
         plot_digits(models, save_to=f"{report_dir}/samples_comparison.png")
         
         # QQplots
-        self._qqplot(models, nominal_data_test, n_samples, p=1, saveto=f"{report_dir}/qqplots.png")
+        self._qqplot(models, nominal_data_test, n_samples, saveto=f"{report_dir}/qqplots.png")
          
         # Test losses
         losses = self._test_losses(models, nominal_data_test)

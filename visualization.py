@@ -6,6 +6,7 @@ import math
 import torch 
 import torchvision
 from src.veriflow.flows import Flow
+from src.veriflow.distributions import RadialDistribution
 from src.explib.visualization import norm, FakeModel
 from src.nf4ad.feature_encoder import FeatureEncoder, feature_encoder_transform
 from src.nf4ad.flows import FeatureFlow
@@ -35,26 +36,20 @@ class FakeModelWithFeatureEncoder(torch.nn.Module):
         Returns:
             A tensor of shape `shape`.
         """
-        print(f"device {self.device}")
+ 
         data = self.dataset[np.random.choice(self.n, shape)][0]
         # TODO: understand how to pass the digit number (and image shape) to find the right min max values for normalization. need to change something in the base class fit module
         data = data.reshape(data.shape[0], 28, 28).unsqueeze(1).to(self.device)
         data = self.feature_encoder(feature_encoder_transform(data, digit=3))
-            
-        print(f"DATA SHAPE {data.shape}")
+             
         return data
 
-import numpy as np 
-import statsmodels.api as sm 
-      
-  
 
-def latent_radial_qqplot(models: Dict[str, Flow], data: datasets, p, n_samples, save_to=None):
+def latent_radial_qqplot(models: Dict[str, Flow], data: datasets, n_samples, save_to=None):
     """Plots a QQ-plot of the empirical and theoretical distribution of the L_p norm of the latent variables.
     
     Args:
         model: The model to visualize.
-        p: The norm to use.
         n_samples: The number of samples to draw from the base distribution.
         n_bins: The number of bins to use in the histogram.
         save_to: If not None, the plot is saved to this path.
@@ -70,14 +65,16 @@ def latent_radial_qqplot(models: Dict[str, Flow], data: datasets, p, n_samples, 
     curves = {"Optimal": plt.plot([0, 1], [0, 1])}
     for name, model in models.items():
         
+        if isinstance(model.base_distribution, RadialDistribution):
+            p = model.base_distribution.p
+        else:
+            p = 1 
         if isinstance(model, FeatureFlow):
             fakemodel = FakeModelWithFeatureEncoder(data, model.feature_encoder, model.device)
             true_samples = fakemodel.sample((n_samples,))
-            print(f"true {true_samples}")
 
             learned_samples =  model.flow.sample((n_samples,))
-            
-            print(f"learned {learned_samples}")
+             
             model.flow.export = "backward"
             true_latent_norms = norm(model.flow.forward(true_samples.to(model.device)), p).sort()[0].cpu().detach()
             learned_latent_norms = norm(model.flow.forward(learned_samples), p).sort()[0].cpu().detach()
@@ -86,16 +83,10 @@ def latent_radial_qqplot(models: Dict[str, Flow], data: datasets, p, n_samples, 
             model.export = "backward"  
             true_latent_norms = norm(model.forward(true_samples.to(model.device)), p).sort()[0].cpu().detach()
             learned_latent_norms = norm(model.forward(learned_samples), p).sort()[0].cpu().detach()
-            print(true_latent_norms)
-            print(learned_latent_norms)
+            
         def cdf(r, samples):
-            # print("inside cdf")
-            # print(r)
-            # print(f"samples {samples}")
-            # print(samples <= r)
             return (samples <= r).sum()/samples.shape[0]
-
-        #print(f"true norms {true_latent_norms}")
+ 
         tqs = [cdf(r, true_latent_norms).detach() for r in true_latent_norms] 
         lqs = [cdf(r, learned_latent_norms).detach() for r in true_latent_norms] 
 
@@ -107,10 +98,6 @@ def latent_radial_qqplot(models: Dict[str, Flow], data: datasets, p, n_samples, 
         plt.savefig(save_to)
     plt.show()
     
-    fig = sm.qqplot(true_latent_norms, line ='45') 
-    plt.show()
-    plt.savefig("./tmp.png")
-
 def show_imgs(imgs, saveto=None, title=None, row_size=10): # TODO: decide default row_size and pass it from the main code based on number of samples
      
     # Form a grid of pictures (we use max. 8 columns)
@@ -163,7 +150,8 @@ def plot_digits(models: dict[str, Flow], n_samples=100, im_shape=(28, 28), save_
             model = models[exp]
             
             samples = model.sample(sample_shape=[n_samples]).cpu().detach().numpy()  
-            if isinstance(model, FeatureFlow):
+            # TODO: remove comment once we fix import of nf4ad module
+            if 0: #isinstance(model, FeatureFlow):
                 samples = samples.squeeze()
             else:
                 samples = samples.reshape(-1, *im_shape)
