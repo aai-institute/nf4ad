@@ -8,9 +8,9 @@ import torchvision
 import matplotlib.pyplot as plt
 import numpy as np
 # TODO: for the moment couldn't use functions from USFlows/explib. Need to modify them
-from src.explib.visualization import latent_radial_qqplot # using USFlows functions
-from visualization import show_imgs, plot_digits #, latent_radial_qqplot # using nf4ad functions (adapted with the featureflow possibility)
-from src.nf4ad.flows import FeatureFlow
+#from src.explib.visualization import latent_radial_qqplot # using USFlows functions
+from visualization import show_imgs, plot_digits, latent_radial_qqplot # using nf4ad functions (adapted with the featureflow possibility)
+from nf4ad.flows import FeatureFlow
 from src.veriflow.flows import Flow
 from src.veriflow.distributions import RadialDistribution
 from src.explib.base import Experiment
@@ -20,7 +20,6 @@ from sklearn.metrics import RocCurveDisplay, roc_auc_score, roc_curve, auc
 from itertools import cycle
 import glob
 import numpy as np
-# TODO: general. Input/output arguments type and documentations for class and method
        
 class Evaluation():
     """Evaluation."""
@@ -28,38 +27,29 @@ class Evaluation():
     def __init__(
         self,
         experiments: T.Iterable[Experiment],
-        device: torch.device = "cuda"
+        n_samples: int = 100
     ) -> None:
-        """Initialize hyperparameter optimization experiment.
-
-        Args:
-            # TODO
-        """
          
-        self.experiments = experiments  
-        self.device = device
+        self.experiments = experiments
+        self.n_samples = n_samples
     
 
-    def conduct(self, report_dir: os.PathLike, n_samples = 100):   #TODO check input arg for device
+    def conduct(self, report_dir: os.PathLike):  
         """Run the evaluation experiment.
 
         Args:
             report_dir (os.PathLike): report directory
         """
-         
+  
+        # Select device
+        device = self.experiments.experiments[0].device
         
         # Load nominal test dataset 
         nominal_dataset = self.experiments.experiments[0].trial_config["dataset"]
         nominal_data_test = nominal_dataset.get_test()
         
-        # Load all MNIST dataset for AD metrics
-        dataset_type = type(nominal_dataset)
-        ad_dataset = dataset_type()
-        ad_data_test = ad_dataset.get_test() # TODO: evaluate only on test portion of Mnist?
-        
         models = {} 
         for i, experiment in enumerate(self.experiments.experiments):
-            
 
             print(f"Evaluating experiment: {experiment.name}") 
             
@@ -68,31 +58,26 @@ class Evaluation():
                 continue
            
             # Load model
-            state_dict = torch.load(ckpt[0], map_location=torch.device(self.device))
+            state_dict = torch.load(ckpt[0], map_location=torch.device(device))
             
             model_hparams = experiment.trial_config["model_cfg"]["params"]
-            print(model_hparams)
             model = experiment.trial_config["model_cfg"]["type"](**model_hparams)
-                
             model.load_state_dict(state_dict)
-            model.to(self.device)
+            model.to(device)
             models[experiment.name] = model
 
         # Reconstruct images
         plot_digits(models, save_to=f"{report_dir}/samples_comparison.png")
         
         # QQplots
-        self._qqplot(models, nominal_data_test, n_samples, saveto=f"{report_dir}/qqplots.png")
+        self._qqplot(models, nominal_data_test, saveto=f"{report_dir}/qqplots.png")
          
         # Test losses
         losses = self._test_losses(models, nominal_data_test)
         df = pd.DataFrame(losses, index=[0]) 
         ax = df.plot.bar()
         ax.figure.savefig(f"{report_dir}/test_losses.png")
-        
-        # AD metrics
-        # self._compute_auc_score(models, ad_data_test, nominal_value=nominal_dataset.digit, saveto=f"{report_dir}/roc_auc.png")
-       
+            
        
     def _test_losses(self, models, data):
 
@@ -102,16 +87,16 @@ class Evaluation():
             for i in range(0, len(data), 100):
                 j = min([len(data), i + 100])
                 test_loss += float(
-                    -model.log_prob(data[i:j][0].to(self.device)).sum()
+                    -model.log_prob(data[i:j][0]).sum()
                 )
             test_loss /= len(data)
             losses[name] = test_loss
         
         return losses
         
-    def _qqplot(self, models: dict[str, Flow], data, n_samples, p=1, saveto=None):
+    def _qqplot(self, models: dict[str, Flow], data, saveto=None):
         
-        curves = latent_radial_qqplot(models, data, p, n_samples, saveto)
+        curves = latent_radial_qqplot(models, data, self.n_samples, saveto)
         
         return curves
     
@@ -165,41 +150,7 @@ class Evaluation():
         
         if saveto:
             plt.savefig(saveto)
-
-        # for name, model in models.items():
-        #     scores = model.log_prob(data[:][0].to(self.device)).cpu().detach()
-
-        #     display = RocCurveDisplay.from_predictions(
-        #         y_onehot_test,
-        #         scores,
-        #         name=f"name",
-        #         color="darkorange",
-        #         plot_chance_level=True,
-        #     )
-        #     o = display.ax_.set(
-        #         xlabel="False Positive Rate",
-        #         ylabel="True Positive Rate",
-        #         title="One-vs-Rest ROC curves:\nNominal value vs non nominal values",
-        #     )
-
-        #     plt.savefig("./roc.png")
-            
-        #     micro_roc_auc_ovo = roc_auc_score(
-        #         y_onehot_test,
-        #         scores,
-        #         multi_class="ovo",
-        #         average="micro",
-        #     )
-                    
-        #     macro_roc_auc_ovo = roc_auc_score(
-        #         y_onehot_test,
-        #         scores,
-        #         multi_class="ovo",
-        #         average="macro",
-        #     )
-
-        #     print(f"Micro-averaged One-vs-One ROC AUC score:\n{micro_roc_auc_ovo:.2f}")
-        #     print(f"Macro-averaged One-vs-One ROC AUC score:\n{macro_roc_auc_ovo:.2f}")
+ 
         return  
         
    

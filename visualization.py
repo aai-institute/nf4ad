@@ -1,6 +1,7 @@
 from typing import Dict, Iterable, Literal
 from matplotlib import pyplot as plt
 import numpy as np
+import math
 from src.explib import datasets
 import math
 import torch 
@@ -8,13 +9,11 @@ import torchvision
 from src.veriflow.flows import Flow
 from src.veriflow.distributions import RadialDistribution
 from src.explib.visualization import norm, FakeModel
-from src.nf4ad.feature_encoder import FeatureEncoder, feature_encoder_transform
-from src.nf4ad.flows import FeatureFlow
-Norm = Literal[-1, 1, 2]
-SampleType = Literal["conditional", "boundary", "boundary_basis"]
+from nf4ad.feature_encoder import FeatureEncoder, feature_encoder_transform
+from nf4ad.flows import FeatureFlow 
 
 class FakeModelWithFeatureEncoder(torch.nn.Module):
-    """A fake model that samples from a dataset.
+    """A fake model that samples from a dataset using the feature encoder.
     
     Args:
         dataset: The dataset to sample from.
@@ -50,8 +49,8 @@ def latent_radial_qqplot(models: Dict[str, Flow], data: datasets, n_samples, sav
     
     Args:
         model: The model to visualize.
+        data: The dataset to sample from with the FakeModel.
         n_samples: The number of samples to draw from the base distribution.
-        n_bins: The number of bins to use in the histogram.
         save_to: If not None, the plot is saved to this path.
     """
     
@@ -69,6 +68,7 @@ def latent_radial_qqplot(models: Dict[str, Flow], data: datasets, n_samples, sav
             p = model.base_distribution.p
         else:
             p = 1 
+            
         if isinstance(model, FeatureFlow):
             fakemodel = FakeModelWithFeatureEncoder(data, model.feature_encoder, model.device)
             true_samples = fakemodel.sample((n_samples,))
@@ -98,8 +98,15 @@ def latent_radial_qqplot(models: Dict[str, Flow], data: datasets, n_samples, sav
         plt.savefig(save_to)
     plt.show()
     
-def show_imgs(imgs, saveto=None, title=None, row_size=10): # TODO: decide default row_size and pass it from the main code based on number of samples
+def show_imgs(imgs, saveto=None, row_size=10): # TODO: decide default row_size and pass it from the main code based on number of samples
      
+    """Create a grid of images.
+    
+    Args:
+        imgs: images to visualize.
+        row_size: the number of the rows of the gris. 
+        save_to: If not None, the plot is saved to this path.
+    """
     # Form a grid of pictures (we use max. 8 columns)
     num_imgs = imgs.shape[0] if isinstance(imgs, torch.Tensor) else len(imgs)
    
@@ -114,57 +121,54 @@ def show_imgs(imgs, saveto=None, title=None, row_size=10): # TODO: decide defaul
     plt.figure(figsize=(1.5*nrow, 1.5*ncol))
     plt.imshow(np.transpose(np_imgs, (1,2, 0)), interpolation='nearest')
     plt.axis('off')
-    if title is not None:
-        plt.title(title)
     
-    if saveto:
-        print(saveto + title)
-        plt.savefig(saveto + title)
+    if saveto: 
+        plt.savefig(saveto)
     
-    plt.show()
     plt.close()
-    
     return np.transpose(np_imgs, (1,2, 0))
 
-# TODO: plot_digits exists in USFlows/explib. However the nsample function is not defined anywhere. Needs to understand it.
-# For the moment we use the following function (that can be moved in the nf4d/visualization module)
 def plot_digits(models: dict[str, Flow], n_samples=100, im_shape=(28, 28), save_to=None): #sqrtn: int
     """ Plot the samples from the models in a grid.
     
     Args:
-         # TODO
+        models: A dictionary of models. The keys are the names and the values are Flow models.
+        n_samples: The number of samples to plot.
+        im_shape: The shape of the images.
+        save_to: If not None, the plot is saved to this path.
     """
     with torch.no_grad():
             
-        ncols = len(models)
-        nrows = 1 # todo: do the sqrt
+        nrows = int(math.sqrt(len(models)))   
+        ncols = (len(models) + nrows - 1) // nrows 
         figsize = (7 * ncols, 25)
         
         fig, axes = plt.subplots(nrows, ncols, figsize=figsize)
-        
-        if not isinstance(axes, np.ndarray):
-            axes = np.array([axes])
-             
-        for exp, ax in zip(models.keys(), axes.T):
-              
-            model = models[exp]
-            
-            samples = model.sample(sample_shape=[n_samples]).cpu().detach().numpy()  
-            # TODO: remove comment once we fix import of nf4ad module
-            if 0: #isinstance(model, FeatureFlow):
-                samples = samples.squeeze()
-            else:
-                samples = samples.reshape(-1, *im_shape)
 
-            samples = np.uint8(np.clip(samples, 0, 1) * 255)
-            imgs_to_show = show_imgs(torch.tensor(samples).unsqueeze(1))
-       
-            ax.imshow(imgs_to_show, cmap="gray")
-            ax.set_xticks([])
-            ax.set_yticks([])
-            ax.set_title(exp, fontsize=20)
+        for j in range(ncols):
+            for i in range(nrows):
+               
+                exp = list(models.keys())[i + j * ncols]
+                model = models[exp]
+        
+                samples = model.sample(sample_shape=[n_samples]).cpu().detach().numpy()  
+                
+                if isinstance(model, FeatureFlow):
+                    samples = samples.squeeze()
+                else:
+                    samples = samples.reshape(-1, *im_shape)
+
+                samples = np.uint8(np.clip(samples, 0, 1) * 255)
+                imgs_to_show = show_imgs(torch.tensor(samples).unsqueeze(1))
+               
+                axes[i, j].imshow(imgs_to_show)
+                axes[i, j].set_xticks([])
+                axes[i, j].set_yticks([])
+                axes[i, j].set_title(exp, fontsize=20)
+                
+                fig.add_axes(axes[i, j])
+            
         plt.tight_layout()
         if save_to:
             plt.savefig(save_to)
-        plt.show()
- 
+        
