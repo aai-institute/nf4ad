@@ -9,7 +9,7 @@ from torch.utils.data import Dataset
 from torch.nn import Module
 import numpy as np
 import torchvision.transforms as transforms
-from src.nf4ad.feature_encoder import FeatureEncoder, feature_encoder_transform
+from nf4ad.feature_encoder import FeatureEncoder, feature_encoder_transform
 
 class FeatureFlow(Flow):
     def __init__(
