@@ -6,7 +6,7 @@ experiments:
   - &exp_rad_logN
     __object__: src.explib.hyperopt.HyperoptExperiment
     name: mnist_3_radial_logN
-    device: cuda
+    device: &device cpu
     scheduler: &scheduler 
       __object__: ray.tune.schedulers.ASHAScheduler
       max_t: 1000000
@@ -19,14 +19,14 @@ experiments:
       metric: val_loss
       mode: min
     trial_config:
-      device: cuda
+      device: *device
       logging:
         images: true
         "image_shape": [28, 28]
       dataset: &dataset
         __object__: src.explib.datasets.MnistSplit
         digit: 3
-        device: cuda
+        device: *device
       epochs: &epochs 200000
       patience: &patience 50
       batch_size: &batch_size 
@@ -47,9 +47,9 @@ experiments:
           training_noise_prior:
             __object__: pyro.distributions.Uniform
             low: 
-              __eval__: 1e-20 * torch.ones(1).to("cuda") #1e-20
-            high: 
-              __eval__: 0.01 * torch.ones(1).to("cuda") #0.01
+              __eval__: 1e-20 * torch.ones(1).to("cpu") #1e-20
+            high:  
+              __eval__: 0.01 * torch.ones(1).to("cpu") #0.01
           prior_scale: 1.0
           coupling_layers: 10
           coupling_nn_layers: [300, 300, 300] 
@@ -58,16 +58,16 @@ experiments:
           split_dim: 392
           base_distribution: 
             __object__: src.veriflow.distributions.RadialDistribution       
-            device: cuda
+            device: *device
             p: 1.0
             loc: 
-              __eval__: torch.zeros(784).to("cuda")
+              __eval__: torch.zeros(784).to("cpu")
             norm_distribution:
               __object__: pyro.distributions.LogNormal
               loc: 
-                __eval__: torch.zeros(1).to("cuda")
+                __eval__: torch.zeros(1).to("cpu")
               scale: 
-                __eval__: (.5 * torch.ones(1)).to("cuda")
+                __eval__: (.5 * torch.ones(1)).to("cpu")
           use_lu: true
   - &exp_rad_logN_p_2
     __overwrites__: *exp_rad_logN
@@ -77,16 +77,16 @@ experiments:
         params:
           base_distribution: 
             __object__: src.veriflow.distributions.RadialDistribution       
-            device: cuda
+            device: *device
             p: 2.0
             loc: 
-              __eval__: torch.zeros(784).to("cuda")
+              __eval__: torch.zeros(784).to("cpu")
             norm_distribution:
               __object__: pyro.distributions.LogNormal
               loc: 
-                __eval__: torch.zeros(1).to("cuda")
+                __eval__: torch.zeros(1).to("cpu")
               scale: 
-                __eval__: (.5 * torch.ones(1)).to("cuda")
+                __eval__: (.5 * torch.ones(1)).to("cpu")
   - &exp_rad_logN_p_inf
     __overwrites__: *exp_rad_logN
     name: mnist_3_radial_logN_p_inf
@@ -95,16 +95,16 @@ experiments:
         params:
           base_distribution: 
             __object__: src.veriflow.distributions.RadialDistribution       
-            device: cuda
+            device: *device
             p: .inf
             loc: 
-              __eval__: torch.zeros(784).to("cuda")
+              __eval__: torch.zeros(784).to("cpu")
             norm_distribution:
               __object__: pyro.distributions.LogNormal
               loc: 
-                __eval__: torch.zeros(1).to("cuda")
+                __eval__: torch.zeros(1).to("cpu")
               scale: 
-                __eval__: (.5 * torch.ones(1)).to("cuda")
+                __eval__: (.5 * torch.ones(1)).to("cpu")
   - &exp_rad_logN_p_1_loc_2
     __overwrites__: *exp_rad_logN
     name: mnist_3_radial_logN_p_1_loc_2
@@ -113,16 +113,16 @@ experiments:
         params:
           base_distribution: 
             __object__: src.veriflow.distributions.RadialDistribution       
-            device: cuda
+            device: *device
             p: 1.0
             loc: 
-              __eval__: torch.zeros(784).to("cuda")
+              __eval__: torch.zeros(784).to("cpu")
             norm_distribution:
               __object__: pyro.distributions.LogNormal
               loc: 
-                __eval__: (2 * torch.ones(1)).to("cuda")
+                __eval__: (2 * torch.ones(1)).to("cpu")
               scale: 
-                __eval__: (.5 * torch.ones(1)).to("cuda")
+                __eval__: (.5 * torch.ones(1)).to("cpu")
   - &exp_rad_logN_p_1_loc_3
     __overwrites__: *exp_rad_logN
     name: mnist_3_radial_logN_p_1_loc_3
@@ -131,16 +131,16 @@ experiments:
         params:
           base_distribution: 
             __object__: src.veriflow.distributions.RadialDistribution       
-            device: cuda
+            device: *device
             p: 1.0
             loc: 
-              __eval__: torch.zeros(784).to("cuda")
+              __eval__: torch.zeros(784).to("cpu")
             norm_distribution:
               __object__: pyro.distributions.LogNormal
               loc: 
-                __eval__: (3 * torch.ones(1)).to("cuda")
+                __eval__: (3 * torch.ones(1)).to("cpu")
               scale: 
-                __eval__: (torch.ones(1)).to("cuda")
+                __eval__: (torch.ones(1)).to("cpu")
   - &exp_laplace
       __overwrites__: *exp_rad_logN
       name: mnist_3_laplace
@@ -151,9 +151,9 @@ experiments:
                 __exact__: 
                   __object__: pyro.distributions.Laplace
                   loc: 
-                    __eval__: torch.zeros(784).to("cuda")
+                    __eval__: torch.zeros(784).to("cpu")
                   scale: 
-                    __eval__: torch.ones(784).to("cuda")
+                    __eval__: torch.ones(784).to("cpu")
   - &exp_normal
     __overwrites__: *exp_rad_logN
     name: mnist_3_normal
@@ -164,6 +164,6 @@ experiments:
               __exact__: 
                 __object__: pyro.distributions.Normal
                 loc: 
-                  __eval__: torch.zeros(784).to("cuda")
+                  __eval__: torch.zeros(784).to("cpu")
                 scale: 
-                  __eval__: torch.ones(784).to("cuda")
+                  __eval__: torch.ones(784).to("cpu")
