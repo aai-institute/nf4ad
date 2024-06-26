@@ -144,11 +144,11 @@ def plot_digits(models: dict[str, Flow], n_samples=100, im_shape=(28, 28), save_
         figsize = (7 * ncols, 25)
         
         fig, axes = plt.subplots(nrows, ncols, figsize=figsize)
-
+        print(axes)
         for j in range(ncols):
             for i in range(nrows):
-               
-                exp = list(models.keys())[i + j * ncols]
+                print(j + i * ncols)
+                exp = list(models.keys())[j + i * ncols]
                 model = models[exp]
         
                 samples = model.sample(sample_shape=[n_samples]).cpu().detach().numpy()  
@@ -161,12 +161,19 @@ def plot_digits(models: dict[str, Flow], n_samples=100, im_shape=(28, 28), save_
                 samples = np.uint8(np.clip(samples, 0, 1) * 255)
                 imgs_to_show = show_imgs(torch.tensor(samples).unsqueeze(1))
                
-                axes[i, j].imshow(imgs_to_show)
-                axes[i, j].set_xticks([])
-                axes[i, j].set_yticks([])
-                axes[i, j].set_title(exp, fontsize=20)
+                if nrows == 1:
+                    axes[j].imshow(imgs_to_show)
+                    axes[j].set_xticks([])
+                    axes[j].set_yticks([])
+                    axes[j].set_title(exp, fontsize=20)
+                    fig.add_axes(axes[j])
+                else:
+                    axes[i, j].imshow(imgs_to_show)
+                    axes[i, j].set_xticks([])
+                    axes[i, j].set_yticks([])
+                    axes[i, j].set_title(exp, fontsize=20)
                 
-                fig.add_axes(axes[i, j])
+                    fig.add_axes(axes[i, j])
             
         plt.tight_layout()
         if save_to:
