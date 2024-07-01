@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 # TODO: for the moment couldn't use functions from USFlows/explib. Need to modify them
 #from src.explib.visualization import latent_radial_qqplot # using USFlows functions
-from visualization import show_imgs, plot_digits, latent_radial_qqplot # using nf4ad functions (adapted with the featureflow possibility)
+from visualization import show_imgs, plot_digits, latent_radial_qqplot, norm_distributions # using nf4ad functions (adapted with the featureflow possibility)
 from nf4ad.flows import FeatureFlow
 from src.veriflow.flows import Flow
 from src.veriflow.distributions import RadialDistribution
@@ -76,7 +76,10 @@ class Evaluation():
         
         # QQplots
         self._qqplot(models, nominal_data_test, saveto=f"{report_dir}/qqplots.png")
-         
+        
+        # Norm distributions
+        norm_distributions(models, nominal_data_test, n_samples=self.n_samples, saveto=f"{report_dir}/kde.png")
+        
         # Test losses
         losses = self._test_losses(models, nominal_data_test)
         df = pd.DataFrame(losses, index=[0]) 

@@ -11,7 +11,8 @@ from src.veriflow.distributions import RadialDistribution
 from src.explib.visualization import norm, FakeModel
 from nf4ad.feature_encoder import FeatureEncoder, feature_encoder_transform
 from nf4ad.flows import FeatureFlow 
-
+import pandas as pd
+import seaborn as sns
 class FakeModelWithFeatureEncoder(torch.nn.Module):
     """A fake model that samples from a dataset using the feature encoder.
     
@@ -96,7 +97,8 @@ def latent_radial_qqplot(models: Dict[str, Flow], data: datasets, n_samples, sav
     plt.tight_layout()
     if save_to:
         plt.savefig(save_to)
-    plt.show()
+    plt.close()
+ 
     
 def show_imgs(imgs, saveto=None, row_size=10): # TODO: decide default row_size and pass it from the main code based on number of samples
      
@@ -177,4 +179,52 @@ def plot_digits(models: dict[str, Flow], n_samples=100, im_shape=(28, 28), save_
         plt.tight_layout()
         if save_to:
             plt.savefig(save_to)
+        plt.close()
         
+        
+def norm_distributions(models: Dict[str, Flow], data: datasets, n_samples, saveto=None):
+    """TODO. add a description.
+    Args:
+        model: The model to visualize.
+        data: The dataset to sample from with the FakeModel.
+        n_samples: The number of samples to draw from the base distribution.
+        save_to: If not None, the plot is saved to this path.
+    """
+    
+    # This fakemodel will be used only for Flow models to generate true samples
+    fakemodel = FakeModel(data)
+    true_samples = fakemodel.sample((n_samples,))
+     
+    for name, model in models.items():
+        
+        if isinstance(model.base_distribution, RadialDistribution):
+            p = model.base_distribution.p
+        else:
+            p = 1 
+            
+        if isinstance(model, FeatureFlow):
+            fakemodel = FakeModelWithFeatureEncoder(data, model.feature_encoder, model.device)
+            true_samples = fakemodel.sample((n_samples,))
+
+            learned_samples =  model.flow.sample((n_samples,))
+             
+            model.flow.export = "backward"
+            true_latent_norms = norm(model.flow.forward(true_samples.to(model.device)), p).sort()[0].cpu().detach()
+            learned_latent_norms = norm(model.flow.forward(learned_samples), p).sort()[0].cpu().detach()
+        else:
+            learned_samples =  model.sample((n_samples,))
+            model.export = "backward"  
+            true_latent_norms = norm(model.forward(true_samples.to(model.device)), p).sort()[0].cpu().detach()
+            learned_latent_norms = norm(model.forward(learned_samples), p).sort()[0].cpu().detach()
+     
+    fig, axes = plt.subplots(1, 2)
+    axes[0].set_title("KDE")
+    axes[1].set_title("Distribution")
+ 
+    df = pd.DataFrame({"true": true_latent_norms, "learned": learned_latent_norms})  
+ 
+    axes[0] = sns.kdeplot(df, fill=True, ax=axes[0])
+    axes[1] = df.plot.hist(alpha=0.5, ax=axes[1])
+    
+    if saveto:
+        plt.savefig(saveto)
