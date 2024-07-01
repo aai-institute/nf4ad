@@ -144,10 +144,9 @@ def plot_digits(models: dict[str, Flow], n_samples=100, im_shape=(28, 28), save_
         figsize = (7 * ncols, 25)
         
         fig, axes = plt.subplots(nrows, ncols, figsize=figsize)
-        print(axes)
         for j in range(ncols):
             for i in range(nrows):
-                print(j + i * ncols)
+                 
                 exp = list(models.keys())[j + i * ncols]
                 model = models[exp]
         

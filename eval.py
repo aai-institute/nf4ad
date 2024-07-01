@@ -59,16 +59,16 @@ class Evaluation():
             try:
                 ckpt = glob.glob(os.path.join(report_dir, f"{i}_{experiment.name}",  "*best_model.pt"))[0]
                 
-                # Load best model parameters from CSV files:
+                # Load best model parameters:
                 config_pkl = glob.glob(os.path.join(report_dir, f"{i}_{experiment.name}", "*best_config.pkl"))[0] 
                 
                 # Load model
-                state_dict = torch.load(ckpt[0], map_location=torch.device(device))
-                
-                model = from_checkpoint(config_pkl, ckpt[0]) 
+                model = from_checkpoint(config_pkl, ckpt) 
                 model.to(device)
                 models[experiment.name] = model
+                
             except:
+                print("Checkpoint not found. Experiment skipped.")
                 continue
 
         # Reconstruct images
