@@ -13,6 +13,7 @@ from visualization import show_imgs, plot_digits, latent_radial_qqplot # using n
 from nf4ad.flows import FeatureFlow
 from src.veriflow.flows import Flow
 from src.veriflow.distributions import RadialDistribution
+from src.explib.config_parser import from_checkpoint
 from src.explib.base import Experiment
 import pandas as pd 
 from sklearn.preprocessing import LabelBinarizer
@@ -20,7 +21,9 @@ from sklearn.metrics import RocCurveDisplay, roc_auc_score, roc_curve, auc
 from itertools import cycle
 import glob
 import numpy as np
-       
+import pandas as pd 
+import ast 
+
 class Evaluation():
     """Evaluation."""
 
@@ -53,18 +56,20 @@ class Evaluation():
 
             print(f"Evaluating experiment: {experiment.name}") 
             
-            ckpt = glob.glob(os.path.join(report_dir, f"{i}_{experiment.name}") + "/*best_model.pt")
-            if len(ckpt) == 0:
+            try:
+                ckpt = glob.glob(os.path.join(report_dir, f"{i}_{experiment.name}",  "*best_model.pt"))[0]
+                
+                # Load best model parameters from CSV files:
+                config_pkl = glob.glob(os.path.join(report_dir, f"{i}_{experiment.name}", "*best_config.pkl"))[0] 
+                
+                # Load model
+                state_dict = torch.load(ckpt[0], map_location=torch.device(device))
+                
+                model = from_checkpoint(config_pkl, ckpt[0]) 
+                model.to(device)
+                models[experiment.name] = model
+            except:
                 continue
-           
-            # Load model
-            state_dict = torch.load(ckpt[0], map_location=torch.device(device))
-            
-            model_hparams = experiment.trial_config["model_cfg"]["params"]
-            model = experiment.trial_config["model_cfg"]["type"](**model_hparams)
-            model.load_state_dict(state_dict)
-            model.to(device)
-            models[experiment.name] = model
 
         # Reconstruct images
         plot_digits(models, save_to=f"{report_dir}/samples_comparison.png")
