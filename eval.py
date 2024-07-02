@@ -50,12 +50,13 @@ class Evaluation():
         # Load nominal test dataset 
         nominal_dataset = self.experiments.experiments[0].trial_config["dataset"]
         nominal_data_test = nominal_dataset.get_test()
-        
+         
         # Load full dataset for AD metrics 
         dataset_type = type(nominal_dataset)
         ad_dataset = dataset_type()
-        ad_data_test = ad_dataset.get_test()  
+        ad_data_test = ad_dataset.get_test()   
         
+                    
         models = {} 
         for i, experiment in enumerate(self.experiments.experiments):
 
@@ -72,7 +73,6 @@ class Evaluation():
 
             # Load model
             model = from_checkpoint(config_pkl, ckpt) 
-            print(model)
             model.to(device)
             models[experiment.name] = model
       
@@ -83,6 +83,7 @@ class Evaluation():
         self._qqplot(models, nominal_data_test, saveto=f"{report_dir}/qqplots.png")
         
         # Norm distributions
+        # TODO: for all models. it is saving only the last one. Change plt layout
         norm_distributions(models, nominal_data_test, n_samples=self.n_samples, saveto=f"{report_dir}/kde.png")
         
         # Test losses

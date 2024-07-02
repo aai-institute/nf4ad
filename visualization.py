@@ -13,6 +13,7 @@ from nf4ad.feature_encoder import FeatureEncoder, feature_encoder_transform
 from nf4ad.flows import FeatureFlow 
 import pandas as pd
 import seaborn as sns
+
 class FakeModelWithFeatureEncoder(torch.nn.Module):
     """A fake model that samples from a dataset using the feature encoder.
     

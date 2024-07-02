@@ -66,7 +66,7 @@ class FeatureFlow(Flow):
         """
         self.device = device
         self.flow.to(device)
-        self.feature_encoder.to(device)
+        self.feature_encoder.to(device) 
         return self 
 
     def sample(
@@ -93,3 +93,63 @@ class FeatureFlow(Flow):
       
         return y
 
+
+class Encoder(torch.nn.Module):
+    def __init__(
+        self, 
+        dim: Optional[int] = None,
+        z_dim: Optional[int] = None, 
+        hidden_dims: Optional[List[int]] = None,
+        hidden_net: Optional[torch.nn.Module] = None,
+        mean_net: Optional[torch.nn.Module] = None,
+        std_net: Optional[torch.nn.Module] = None
+        nonlinearity = torch.nn.Softplus()
+        ):
+        
+        if hidden_net:
+            # Using an hard coded architecture to use Tim's pretrained weights 
+            self.hidden_net = hidden_net
+            self.mean_net = mean_net #fc1 from Tim
+            self.std_net = std_net
+            # Tim's network has only one last layer for the mean. We would need to add one (init with all zeros) for std.
+        else:
+            layers = []
+            layers.append(torch.nn.Linear(dim, hidden_dims[0]))
+            layers.append(nonlinearity)
+            for i in range(len(hidden_dims) - 1):
+                layers.append(torch.nn.Linear(hidden_dims[i], hidden_dims[i+1]))
+                layers.append(nonlinearity)
+            self.hidden_net = torch.nn.Sequential(*layers)
+
+            self.mean_net = torch.nn.Linear(hidden_dims[-1], z_dim)
+            self.std_net = torch.nn.Linear(hidden_dims[-1], z_dim)
+
+
+        super().__init__()
+        
+            
+    def forward(self, x):
+        hidden = self.hidden_net(x)
+        mean = self.mean_net(hidden)
+        relu = torch.nn.relu
+        std = relu(self.std_net(hidden))
+
+        return mean, std
+
+class Decoder(torch.nn.module):
+    pass
+
+class LatentFlow(Flow):
+    
+    def __init__(self, encoder: Union[Encoder, str], decoder: Union[Decoder, str]):
+        
+        if isinstance(encoder, Encoder):
+            self.encoder = encoder
+        else:
+            self. = FeatureEncoder() 
+        
+            checkpoint = torch.load(os.path.abspath(pretrained_feature_encoder))
+            self.feature_encoder.load_state_dict(checkpoint["ae_net_dict"])
+            
+            
+        
