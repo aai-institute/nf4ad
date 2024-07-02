@@ -51,6 +51,11 @@ class Evaluation():
         nominal_dataset = self.experiments.experiments[0].trial_config["dataset"]
         nominal_data_test = nominal_dataset.get_test()
         
+        # Load full dataset for AD metrics 
+        dataset_type = type(nominal_dataset)
+        ad_dataset = dataset_type()
+        ad_data_test = ad_dataset.get_test()  
+        
         models = {} 
         for i, experiment in enumerate(self.experiments.experiments):
 
@@ -58,19 +63,19 @@ class Evaluation():
             
             try:
                 ckpt = glob.glob(os.path.join(report_dir, f"{i}_{experiment.name}",  "*best_model.pt"))[0]
-                
                 # Load best model parameters:
                 config_pkl = glob.glob(os.path.join(report_dir, f"{i}_{experiment.name}", "*best_config.pkl"))[0] 
-                
-                # Load model
-                model = from_checkpoint(config_pkl, ckpt) 
-                model.to(device)
-                models[experiment.name] = model
                 
             except:
                 print("Checkpoint not found. Experiment skipped.")
                 continue
 
+            # Load model
+            model = from_checkpoint(config_pkl, ckpt) 
+            print(model)
+            model.to(device)
+            models[experiment.name] = model
+      
         # Reconstruct images
         plot_digits(models, save_to=f"{report_dir}/samples_comparison.png")
         
@@ -85,6 +90,9 @@ class Evaluation():
         df = pd.DataFrame(losses, index=[0]) 
         ax = df.plot.bar()
         ax.figure.savefig(f"{report_dir}/test_losses.png")
+        
+        # AD metrics
+        self._compute_auc_score(models, ad_data_test, nominal_value=nominal_dataset.digit, device=device, saveto=f"{report_dir}/roc_auc.png")
             
        
     def _test_losses(self, models, data):
@@ -108,9 +116,11 @@ class Evaluation():
         
         return curves
     
-    def _compute_auc_score(self, models, data, nominal_value, saveto=None):
-         
+    def _compute_auc_score(self, models, data, nominal_value, device, saveto=None):
+          
         labels = data.labels 
+        if not isinstance(labels, np.ndarray):
+            labels = labels.numpy()
         
         labels_1_vs_1 = labels.copy()
         labels_1_vs_1[labels == nominal_value] = 1
@@ -124,7 +134,7 @@ class Evaluation():
         tpr = dict()
         roc_auc = dict()
         for name, model in models.items():  
-            scores = model.log_prob(data[:][0].to(self.device)).cpu().detach()
+            scores = model.log_prob(data[:][0].to(device)).cpu().detach()
             fpr[name], tpr[name], _ = roc_curve(y_onehot_test, scores)
             roc_auc[name] = auc(fpr[name], tpr[name])
 
