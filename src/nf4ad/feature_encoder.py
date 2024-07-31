@@ -169,3 +169,19 @@ class MeanNet(torch.nn.Module):
         x = self.fc1(x)
         
         return x
+
+class StdNet(torch.nn.Module):
+    
+    def __init__(self):
+        super().__init__()
+        
+        self.rep_dim = 32
+        self.fc1 = torch.nn.Linear(4 * 7 * 7, self.rep_dim, bias=False)
+        
+        with torch.no_grad():
+            self.fc1.weight = torch.zeros(4 * 7 * 7, self.rep_dim)  
+            
+    def forward(self, x):
+        x = self.fc1(x)
+        
+        return x

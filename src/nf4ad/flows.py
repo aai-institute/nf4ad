@@ -9,7 +9,7 @@ from torch.utils.data import Dataset
 from torch.nn import Module
 import numpy as np
 import torchvision.transforms as transforms
-from nf4ad.feature_encoder import FeatureEncoder, PretrainedEncoder, PretrainedDecoder, MeanNet, feature_encoder_transform
+from nf4ad.feature_encoder import FeatureEncoder, PretrainedEncoder, PretrainedDecoder, MeanNet, StdNet, feature_encoder_transform
 import pyro 
 from pyro.infer import SVI
 from pyro.optim import Adam 
@@ -115,8 +115,11 @@ class Encoder(torch.nn.Module):
             self.hidden_net = hidden_net
             self.mean_net = mean_net # fc1 from Tim
             # TODO: this is done just for having the code run. The std net should be initialize with a fc layer of all zeros
-            self.std_net = mean_net 
-            # Tim's network has only one last layer for the mean. We would need to add one (init with all zeros) for std.
+            if self.std_net is None:
+                self.std_net = StdNet()
+            else:
+                self.std_net = std_net 
+                # Tim's network has only one last layer for the mean. We would need to add one (init with all zeros) for std.
         else:
             layers = []
             layers.append(torch.nn.Linear(dim, hidden_dims[0]))
