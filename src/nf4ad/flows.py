@@ -9,7 +9,7 @@ from torch.utils.data import Dataset
 from torch.nn import Module
 import numpy as np
 import torchvision.transforms as transforms
-from nf4ad.feature_encoder import PretrainedEncoder, PretrainedDecoder, MeanNet, feature_encoder_transform
+from nf4ad.feature_encoder import FeatureEncoder, PretrainedEncoder, PretrainedDecoder, MeanNet, feature_encoder_transform
 import pyro 
 from pyro.infer import SVI
 from pyro.optim import Adam 
@@ -38,8 +38,6 @@ class FeatureFlow(Flow):
         checkpoint = torch.load(os.path.abspath(pretrained_feature_encoder))
         self.feature_encoder.load_state_dict(checkpoint["ae_net_dict"])
         
-     
-        # TODO: check how to change the way trainable layers is created. Here needs to be flow layers + feature encoder layer
         self.trainable_layers = torch.nn.ModuleList(
             [l for l in flow.layers if isinstance(l, torch.nn.Module)] + 
             [fe_l for _, fe_l in self.feature_encoder.named_modules() if isinstance(fe_l, torch.nn.Module)]
@@ -54,7 +52,7 @@ class FeatureFlow(Flow):
         Returns:
             Tensor: The log probability of the samples.
         """ 
-        # TODO: understand how to pass the digit number to find the right min max values for normalization. need to change something in the base class fit module
+        # TODO: Image dimension (28x28) and digit label (3) are hardcoded. Change this!
         x = x.reshape(x.shape[0], 28, 28).unsqueeze(1)
         z = self.feature_encoder(feature_encoder_transform(x, digit=3))
      
@@ -115,7 +113,7 @@ class Encoder(torch.nn.Module):
         if hidden_net:
             # Using an hard coded architecture to use Tim's pretrained weights 
             self.hidden_net = hidden_net
-            self.mean_net = mean_net #fc1 from Tim
+            self.mean_net = mean_net # fc1 from Tim
             # TODO: this is done just for having the code run. The std net should be initialize with a fc layer of all zeros
             self.std_net = mean_net 
             # Tim's network has only one last layer for the mean. We would need to add one (init with all zeros) for std.
@@ -199,11 +197,10 @@ class LatentFlow():
         # register PyTorch module `decoder` with Pyro
         pyro.module("decoder", self.decoder)
         with pyro.plate("data", x.shape[0]):
-            # setup hyperparameters for prior p(z)
+            # (From pyro tutorial) setup hyperparameters for prior p(z)
             # z_loc = x.new_zeros(torch.Size((x.shape[0], self.z_dim)))
             # z_scale = x.new_ones(torch.Size((x.shape[0], self.z_dim)))
             # z = pyro.sample("latent", dist.Normal(z_loc, z_scale).to_event(1))
-            
             # sample from prior (value will be sampled by guide when computing the ELBO)
             
             # TODO: Is this conceptual right? understand how to use pyro and sample from the flow
@@ -211,10 +208,10 @@ class LatentFlow():
             # decode the latent code z
             loc_img = self.decoder(z)
 
-            # TODO: hadt to put the workaround validate_args=False otherwise I get an error on data range [0, 1]
+            # TODO: had to put the workaround "validate_args=False" otherwise I get an error on data range [0, 1]. Check this!
             pyro.sample("obs", dist.Bernoulli(loc_img, validate_args=False).to_event(1), obs=x.reshape(-1, 784))
             
-    # define the guide (i.e. variational distribution) q(z|x)
+    # (From pyro tutorial) define the guide (i.e. variational distribution) q(z|x)
     def guide(self, x):
         # register PyTorch module `encoder` with Pyro
         pyro.module("encoder", self.encoder)
@@ -225,7 +222,7 @@ class LatentFlow():
             lambda_dist = lambda loc, scale: dist.Normal(loc, scale) 
             pyro.sample("latent", dist.Normal(z_loc, z_scale).to_event(1))
             
-     # define a helper function for reconstructing images
+     # (From pyro tutorial) define a helper function for reconstructing images
     def reconstruct_img(self, x):
         # encode image x
         z_loc, z_scale = self.encoder(x)
@@ -278,18 +275,17 @@ class LatentFlow():
                 except:
                     continue
 
-                # TODO: Using svi step this is not needed anymore. Check if it is taken care inside the svi.step
+                # TODO: Using svi step this is not needed anymore. Check it!
                 # optimizer.zero_grad()
 
                 loss = svi.step(sample)
-                
                 losses.append(loss)
                 
-                # # TODO: check if this is needed here 
+                # TODO: check if this is still needed here 
                 # if gradient_clip is not None:
                 #     torch.nn.utils.clip_grad_norm_(model.parameters(), gradient_clip)
                 
-                # TODO: this is also related to the explanation in line 281
+                # TODO: related to TODO in line 278. Should not be needed anymore
                 #optim.step()
                 
                 # TODO: for the moment LatentFlow doesn't inherit from Flow --> therefore this method doesn't exist. 
@@ -301,15 +297,9 @@ class LatentFlow():
             epoch_losses.append(np.mean(losses))
 
         return epoch_losses
-
-        # TODO: this is done outside the fit method for the Latentflow --> check this!
-        # return epoch loss
-        # normalizer_train = len(train_loader.dataset)
-        # total_epoch_loss_train = epoch_loss / normalizer_train
-        # return total_epoch_loss_train
         
     def evaluate(self, dataset: Dataset, svi: SVI, batch_size: int = 32):
-        # TODO: check device if it is needed or data_val and model already on device
+        # TODO: check if we need to pass the device or if data and model already on the right device
          
         loss = 0.
         for i in range(0, len(dataset), batch_size):

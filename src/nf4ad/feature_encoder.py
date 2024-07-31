@@ -63,7 +63,7 @@ def feature_encoder_transform(x: torch.Tensor, digit: int = 3):
     return transform(x)
 
 # TODO: probably we won't need this FeatureEncoder anymore or 
-# can be refactored to accept the pretrained encoder, pretrained decoder and the mean net (fc1)
+# can be refactored to accept the pretrained encoder, pretrained decoder and the mean net (fc1) 
 class FeatureEncoder(torch.nn.Module):
     
     def __init__(self):
