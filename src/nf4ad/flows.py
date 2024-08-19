@@ -206,8 +206,7 @@ class LatentFlow():
             # z = pyro.sample("latent", dist.Normal(z_loc, z_scale).to_event(1))
             # sample from prior (value will be sampled by guide when computing the ELBO)
             
-            # TODO: Is this conceptual right? understand how to use pyro and sample from the flow
-            z = self.flow.sample([x.shape[0]])
+            z = pyro.sample("latent", self.flow)
             # decode the latent code z
             loc_img = self.decoder(z)
 
