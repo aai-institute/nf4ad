@@ -199,6 +199,7 @@ class LatentFlow():
     def model(self, x):
         # register PyTorch module `decoder` with Pyro
         pyro.module("decoder", self.decoder)
+        pyro.module("prior", self.flow)
         with pyro.plate("data", x.shape[0]):
             # (From pyro tutorial) setup hyperparameters for prior p(z)
             # z_loc = x.new_zeros(torch.Size((x.shape[0], self.z_dim)))
