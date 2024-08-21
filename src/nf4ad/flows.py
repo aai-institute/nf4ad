@@ -161,13 +161,13 @@ class Decoder(torch.nn.Module):
             self.net = net
         else:
             layers = []
-            layers.append(torch.nn.Linear(z_dim, hidden_dims[-1]))
+            layers.append(torch.nn.Linear(z_dim, hidden_dims[0]))
             layers.append(nonlinearity)
-            for i in reversed(range(1, len(hidden_dims))):
-                layers.append(torch.nn.Linear(hidden_dims[i], hidden_dims[i-1]))
+            for i in range(len(hidden_dims)-1):
+                layers.append(torch.nn.Linear(hidden_dims[i], hidden_dims[i+1]))
                 layers.append(nonlinearity)
                 
-            layers.append(torch.nn.Linear(hidden_dims[0], dim))
+            layers.append(torch.nn.Linear(hidden_dims[-1], dim))
             self.net = torch.nn.Sequential(*layers)
          
             
@@ -243,7 +243,7 @@ class LatentFlow():
         self.decoder.to(device)
         self.flow.to(device)
         
-        return device
+        return self
         
     def fit(self, data_train: Dataset,
             svi: SVI, 
@@ -257,7 +257,7 @@ class LatentFlow():
             if torch.backends.mps.is_available():
                 device = torch.device("mps")
             elif torch.cuda.is_available():
-                device = torch.device("cuda:0")
+                device = torch.device("cuda")
             else:
                 device = torch.device("cpu")
  
