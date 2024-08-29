@@ -264,6 +264,15 @@ class LatentFlow():
         model = self.to(device)
         
         N = len(data_train)
+
+        sample = data_train[0:2][0]
+        loss_fn = lambda model, guide, sample: pyro.infer.Trace_ELBO().differentiable_loss(model, guide, sample)
+        with pyro.poutine.trace(param_only=True) as param_capture:
+            loss = loss_fn(self.model, self.guide, sample)
+        params = set(site["value"].unconstrained()
+                        for site in param_capture.trace.nodes.values())
+        optimizer = torch.optim.Adam(params, lr=0.001, betas=(0.90, 0.999))
+        
         epoch_losses = []
         for _ in range(epochs):
             losses = []
@@ -280,9 +289,16 @@ class LatentFlow():
 
                 # TODO: Using svi step this is not needed anymore. Check it!
                 # optimizer.zero_grad()
+                
+                # compute loss
+                loss = loss_fn(self.model, self.guide, sample) - self.flow.log_prior()
+                loss.backward()
+                # take a step and zero the parameter gradients
+                optimizer.step()
+                optimizer.zero_grad()
 
-                loss = svi.step(sample)
-                losses.append(loss)
+                # loss = svi.step(sample)
+                losses.append(loss.detach().cpu())
                 
                 # TODO: check if this is still needed here 
                 # if gradient_clip is not None:
