@@ -1,14 +1,14 @@
 # Uniformly Scaling Flows for Anomaly Detection
 This repository contains experiments
 investigating uniformly scaling normalizing flows for anomaly
-detection. We use the [VeriFlow](https://github.com/aai-institute/VeriFlow) 
+detection. We use the [VeriFlow](https://github.com/aai-institute/USFlows) 
 implementation of uniformly scaling flows. 
 
 # Installation
 1) Clone the repository
 2) Clone the VeriFlow repository
 ```bash
-git clone git@github.com:aai-institute/VeriFlow.git
+git clone git@github.com:aai-institute/USFlows.git
 ```
 3) Create a new virtual environment, e.g. with Conda
 ```bash
