@@ -17,7 +17,7 @@ conda activate nf4ad
 ```
 4) Install the requirements
 ```bash
-pip install path/to/veriflow/project/directory
+pip install <path/to/usflows/project/directory>
 ```
 
 # Run experiments
