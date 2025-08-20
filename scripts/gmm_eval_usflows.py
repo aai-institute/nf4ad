@@ -1,3 +1,5 @@
+import numpy as np
+from scipy.stats import gaussian_kde
 from matplotlib.patches import Circle
 import torch
 from matplotlib import pyplot as plt
@@ -103,20 +105,96 @@ def gmm_contourplot_2D(model_dir):
         latents = model.backward(ds) - model.base_distribution.loc
 
 
-    _, axes = plt.subplots(ncols=2, figsize=(10, 5))
-    
-    ax = axes[0]
-    ax.scatter(ds[:, 0], ds[:, 1])
-    ax.set_aspect("equal")
-    ax.set_title("Data Distribution")
+    _, ax = plt.subplots(figsize=(5, 5))
+    #ax.set_facecolor('white')
 
-    ax = axes[1]
-    ax.scatter(latents[:, 0], latents[:, 1])
-    scale = softplus(model.base_distribution.scale_unconstrained)
-    ax.add_patch(Circle((0., 0.), radius=scale, fill=False, edgecolor='blue', linewidth=2))
-    ax.add_patch(Circle((0., 0.), radius=2*scale, fill=False, edgecolor='blue', linewidth=2))
-    ax.add_patch(Circle((0., 0.), radius=3*scale, fill=False, edgecolor='blue', linewidth=2))
+    ax
+    # 1. Generate sample data (replace with your dataset)
+    np.random.seed(42)
+    x = ds[:, 0].numpy()
+    y = ds[:, 1].numpy()
+
+    # 2. Create grid for density evaluation
+    x_grid, y_grid = np.mgrid[x.min():x.max():100j, y.min():y.max():100j]
+    positions = np.vstack([x_grid.ravel(), y_grid.ravel()])
+
+    # 3. Calculate density using Kernel Density Estimation (KDE)
+
+    density = np.reshape(torch.exp(distribution.log_prob(torch.Tensor(positions).permute(1,0))).detach().T, x_grid.shape)
+
+
+    # Contour lines only
+    contour = ax.contour(x_grid, y_grid, density, levels=8, colors='black', linewidths=0.5)
+
+    # Filled contours with colormap
+    #contourf = plt.contourf(x_grid, y_grid, density, levels=32, cmap='viridis')
+
+    # Add colorbar
+    #cbar = plt.colorbar(contourf)
+    #cbar.set_label('Density')
+
+    # Add data points overlay (optional)
+    with torch.no_grad():
+        c = torch.exp(distribution.log_prob(ds))
+    scatter = ax.scatter(x, y, s=5, c=c, cmap="Reds", alpha=1, edgecolor='white')
+    plt.colorbar(scatter, label='Data Density')
+
+    # Customize plot
+    ax.set_title('Data Distribution 2D GMM')
+    #ax.xlabel('X-axis')
+    #ax.ylabel('Y-axis')
     ax.set_aspect('equal')
-    ax.set_title("Distribution of Centered Data Latents")
+    ax.grid(alpha=0.2)
+    plt.tight_layout()
 
-    plt.show()
+    plt.savefig("contour_2d_gmm.png")
+
+    ###############################################3
+
+    _, ax = plt.subplots(figsize=(5, 5))
+    #ax.set_facecolor('white')
+
+    # 1. Generate sample data (replace with your dataset)
+    np.random.seed(42)
+    x = latents[:, 0].numpy()
+    y = latents[:, 1].numpy()
+
+    # 2. Create grid for density evaluation
+    x_grid, y_grid = np.mgrid[x.min():x.max():100j, y.min():y.max():100j]
+    positions = np.vstack([x_grid.ravel(), y_grid.ravel()])
+
+    # 3. Calculate density using Kernel Density Estimation (KDE)
+    kde = gaussian_kde(np.vstack([x, y]))
+    density = np.reshape(kde(positions).T, x_grid.shape)
+
+
+    # Contour lines only
+    #contour = ax.contour(x_grid, y_grid, density, levels=8, colors='black', linewidths=0.5)
+
+    # Filled contours with colormap
+    #contourf = plt.contourf(x_grid, y_grid, density, levels=32, cmap='viridis')
+
+    # Add colorbar
+    #cbar = plt.colorbar(contourf)
+    #cbar.set_label('Density')
+
+    # Add data points overlay (optional)
+
+    scatter = ax.scatter(x, y, s=5, c=c, cmap="Reds", alpha=1, edgecolor='white')
+    plt.colorbar(scatter, label='Data Density')
+
+    # Customize plot
+    ax.set_title('Centered Latent Data Distribution\n2D GMM')
+
+    #ax.xlabel('X-axis')
+    #ax.ylabel('Y-axis')
+    scale = softplus(model.base_distribution.scale_unconstrained)
+    ax.add_patch(Circle((0., 0.), radius=scale, fill=False, edgecolor='black', linewidth=.5, linestyle='--'))
+    ax.add_patch(Circle((0., 0.), radius=1.5*scale, fill=False, edgecolor='black', linewidth=.5, linestyle='--'))
+    ax.add_patch(Circle((0., 0.), radius=2*scale, fill=False, edgecolor='black', linewidth=.5 , linestyle='--'))
+    ax.add_patch(Circle((0., 0.), radius=2.5*scale, fill=False, edgecolor='black', linewidth=.5, linestyle="--"))
+    ax.add_patch(Circle((0., 0.), radius=3*scale, fill=False, edgecolor='black', linewidth=.5, linestyle="--"))
+    ax.set_aspect('equal')
+    ax.grid(alpha=0.2)
+    plt.tight_layout()
+    plt.savefig("contour_latent_2d_gmm.png")
