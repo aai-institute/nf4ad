@@ -1,0 +1,82 @@
+---
+__object__: src.usflows.explib.base.ExperimentCollection
+name: MNIST_vaeflow
+experiments:
+  - &mnist
+    __object__: nf4ad.hyperopt.VAEFlowHyperoptExperiment
+    name: mnist
+    scheduler: 
+      __object__: ray.tune.schedulers.ASHAScheduler
+      max_t: 1000000
+      grace_period: 1000000
+      reduction_factor: 2
+    num_hyperopt_samples: 1
+    gpus_per_trial: 0
+    cpus_per_trial: 16
+    tuner_params: 
+      metric: val_loss
+      mode: min
+    trial_config:
+      logging:
+        images: false
+        image_shape: [28, 28]
+      dataset: 
+        __object__: src.usflows.explib.datasets.MnistSplit
+        space_to_depth_factor: 1
+        digit: 0
+        three_channel: true
+      epochs: 200000
+      patience: 3
+      batch_size: 
+        __eval__: tune.choice([16])
+      optim_cfg: 
+        optimizer:
+          __class__: src.usflows.sophia.SophiaG
+        params:
+          lr: 
+            __eval__: 1e-3
+          weight_decay: 0.0
+      model_cfg: 
+        type:
+          __class__: nf4ad.vaeflow.VAEFlow
+        params:
+          latent_dim: 2
+          encoder_arch: resnet18
+          encoder_trainable: false
+          decoder:
+            __object__: nf4ad.vaeflow.SimpleDecoder
+            latent_dim: 2
+            output_size: [28, 28]
+            output_channels: 3
+          flow_prior:
+            class: 
+              __class__: src.usflows.flows.USFlow
+            params:
+              soft_training: 
+                __eval__: tune.choice([False])
+              training_noise_prior:
+                __object__: pyro.distributions.Uniform
+                low:
+                  __eval__: 1e-20
+                high: 0.01
+              prior_scale: 1.0
+              coupling_blocks: 5
+              lu_transform: 1
+              householder: 0
+              conditioner_cls:
+                __class__: pyro.nn.DenseNN
+              conditioner_args:
+                input_dim: 2
+                hidden_dims: [64, 32, 64]
+                param_dims: [2]
+              in_dims: [2]
+              affine_conjugation: true
+              nonlinearity:
+                __eval__: tune.choice([torch.nn.ReLU()])
+              base_distribution:
+                __object__: pyro.distributions.Normal
+                loc: 
+                  __eval__: torch.zeros([2]).to("cpu")
+                scale: 
+                  __eval__: torch.ones([2]).to("cpu")
+  

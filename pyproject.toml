@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "nf4ad"
+version = "0.1.0"
+description = "\"Normalizing flow for Anomaly Detection\""
+authors = ["Faried Abu Zaid <f.abuzaid@appliedai-institute.de>"]
+readme = "README.md"
+packages = [{include = "nf4ad", from="src"}, {include = "scripts"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
