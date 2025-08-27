@@ -67,7 +67,7 @@ experiments:
               conditioner_args:
                 input_dim: 128
                 hidden_dims: [256, 64, 256]
-                param_dims: 
+                param_dims: [128]
               in_dims: [128]
               affine_conjugation: true
               nonlinearity:
@@ -161,4 +161,4 @@ experiments:
     trial_config:
       dataset: 
         __object__: src.usflows.explib.datasets.MVTecADSplit
-        category: metalnut
+        category: metal_nut
