@@ -1,8 +1,8 @@
 from typing import Any, Dict, Union, Tuple, Optional, Iterable
 import logging
 import os
-from src.veriflow.flows import Flow
-from src.explib.config_parser import from_checkpoint
+from src.usflows.flows import Flow
+from src.usflows.explib.config_parser import from_checkpoint
 import torch  
 import torch.nn.functional as F
 from torch.utils.data import Dataset
@@ -13,7 +13,6 @@ from nf4ad.feature_encoder import FeatureEncoder, PretrainedEncoder, PretrainedD
 import pyro 
 from pyro.infer import SVI
 from pyro.optim import Adam 
-from src.veriflow.flows import Flow
 from pyro import distributions as dist
 
 class FeatureFlow(Flow):

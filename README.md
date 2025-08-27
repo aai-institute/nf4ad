@@ -1,23 +1,23 @@
 # Uniformly Scaling Flows for Anomaly Detection
 This repository contains experiments
 investigating uniformly scaling normalizing flows for anomaly
-detection. We use the [VeriFlow](https://github.com/aai-institute/VeriFlow) 
+detection. We use the [USFlows](https://github.com/aai-institute/USFlows) 
 implementation of uniformly scaling flows. 
 
 # Installation
 1) Clone the repository
 2) Clone the VeriFlow repository
 ```bash
-git clone git@github.com:aai-institute/VeriFlow.git
+git clone git@github.com:aai-institute/USFlows.git
 ```
-3) Create a new virtual environment, e.g. with Conda
+3) Create NF4AD poetry environment. 
 ```bash
-conda create -n nf4ad python=3.10
-conda activate nf4ad
+  cd path/to/nf4ad/project/directory
+  poetry install
 ```
-4) Install the requirements
+4) Install the USFlows library
 ```bash
-pip install path/to/veriflow/project/directory
+poetry run pip install -e path/to/usflows/project/directory
 ```
 
 # Run experiments
