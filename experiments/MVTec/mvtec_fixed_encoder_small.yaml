@@ -1,6 +1,6 @@
 ---
 __object__: src.usflows.explib.base.ExperimentCollection
-name: MVTecAD_fixed_encoder
+name: MVTecAD_fixed_encoder_small
 experiments:
   - &exp_bottle
     __object__: nf4ad.hyperopt.VAEFlowHyperoptExperiment
@@ -25,8 +25,9 @@ experiments:
         category: bottle
         space_to_depth_factor: 1
         load_into_memory: false
+        dataloc: /home/faried/Projects/nf4ad/data/mvtec_ad
       epochs: 200000
-      patience: 10
+      patience: 1
       batch_size: 
         __eval__: tune.choice([16])
       optim_cfg: 
@@ -40,12 +41,12 @@ experiments:
         type:
           __class__: nf4ad.vaeflow.VAEFlow
         params:
-          latent_dim: 128
-          encoder_arch: wide_resnet50_2
+          latent_dim: 32
+          encoder_arch: resnet18
           encoder_trainable: false
           decoder:
             __object__: nf4ad.vaeflow.SimpleDecoder
-            latent_dim: 128
+            latent_dim: 32
             output_size: [900, 900]
           flow_prior:
             class: 
@@ -59,25 +60,25 @@ experiments:
                   __eval__: 1e-20
                 high: 0.01
               prior_scale: 1.0
-              coupling_blocks: 10
+              coupling_blocks: 4
               lu_transform: 1
               householder: 0
               conditioner_cls:
                 __class__: pyro.nn.DenseNN
               conditioner_args:
-                input_dim: 128
-                hidden_dims: [256, 64, 256]
-                param_dims: [128]
-              in_dims: [128]
+                input_dim: 32
+                hidden_dims: [128, 64]
+                param_dims: [32]
+              in_dims: [32]
               affine_conjugation: true
               nonlinearity:
                 __eval__: tune.choice([torch.nn.ReLU()])
               base_distribution:
                 __object__: pyro.distributions.Normal
                 loc: 
-                  __eval__: torch.zeros([128]).to("cpu")
+                  __eval__: torch.zeros([32]).to("cpu")
                 scale: 
-                  __eval__: torch.ones([128]).to("cpu")
+                  __eval__: torch.ones([32]).to("cpu")
   - __overwrites__: *exp_bottle
     name: mvtec_cable
     trial_config:
