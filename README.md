@@ -24,7 +24,7 @@ poetry run pip install -e path/to/usflows/project/directory
 The experiments for uniformly scaling normalizing flows can be run with the
 following command from within the nf4ad project directory:
 ```bash
-python scripts/run-experiment.py --config experiments/<experiment>/<expconfig>.yaml
+poetry run python scripts/run-experiment.py --config experiments/<experiment>/<expconfig>.yaml
 ```
 where `<experiment>` is the name of the experiment and `<expconfig>` is the name
 of the configuration file for the experiment. The configuration files are
