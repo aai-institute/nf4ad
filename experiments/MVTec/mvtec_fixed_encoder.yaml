@@ -66,7 +66,7 @@ experiments:
                 __class__: pyro.nn.DenseNN
               conditioner_args:
                 input_dim: 128
-                hidden_dims: [256, 64, 256]
+                hidden_dims: [512, 256]
                 param_dims: [128]
               in_dims: [128]
               affine_conjugation: true
@@ -84,81 +84,165 @@ experiments:
       dataset: 
         __object__: src.usflows.explib.datasets.MVTecADSplit
         category: cable
+      model_cfg: 
+        type:
+          __class__: nf4ad.vaeflow.VAEFlow
+        params:
+          decoder:
+            output_size: [1024, 1024]
   - __overwrites__: *exp_bottle
     name: mvtec_capsule
     trial_config:
       dataset: 
         __object__: src.usflows.explib.datasets.MVTecADSplit
         category: capsule
+      model_cfg: 
+        type:
+          __class__: nf4ad.vaeflow.VAEFlow
+        params:
+          decoder:
+            output_size: [1000, 1000]
   - __overwrites__: *exp_bottle
     name: mvtec_hazelnut
     trial_config:
       dataset: 
         __object__: src.usflows.explib.datasets.MVTecADSplit
         category: hazelnut
+      model_cfg: 
+        type:
+          __class__: nf4ad.vaeflow.VAEFlow
+        params:
+          decoder:
+            output_size: [1024, 1024]
   - __overwrites__: *exp_bottle
     name: mvtec_carpet
     trial_config:
       dataset: 
         __object__: src.usflows.explib.datasets.MVTecADSplit
         category: carpet
+      model_cfg: 
+        type:
+          __class__: nf4ad.vaeflow.VAEFlow
+        params:
+          decoder:
+            output_size: [1024, 1024]
   - __overwrites__: *exp_bottle
     name: mvtec_leather
     trial_config:
       dataset: 
         __object__: src.usflows.explib.datasets.MVTecADSplit
         category: leather
+      model_cfg: 
+        type:
+          __class__: nf4ad.vaeflow.VAEFlow
+        params:
+          decoder:
+            output_size: [1024, 1024]
   - __overwrites__: *exp_bottle
     name: mvtec_tile
     trial_config:
       dataset: 
         __object__: src.usflows.explib.datasets.MVTecADSplit
         category: tile
+      model_cfg: 
+        type:
+          __class__: nf4ad.vaeflow.VAEFlow
+        params:
+          decoder:
+            output_size: [840, 840]
   - __overwrites__: *exp_bottle
     name: mvtec_zipper
     trial_config:
       dataset: 
         __object__: src.usflows.explib.datasets.MVTecADSplit
         category: zipper
+      model_cfg: 
+        type:
+          __class__: nf4ad.vaeflow.VAEFlow
+        params:
+          decoder:
+            output_size: [1024, 1024]
   - __overwrites__: *exp_bottle
     name: mvtec_toothbrush
     trial_config:
       dataset: 
         __object__: src.usflows.explib.datasets.MVTecADSplit
         category: toothbrush
+      model_cfg: 
+        type:
+          __class__: nf4ad.vaeflow.VAEFlow
+        params:
+          decoder:
+            output_size: [1024, 1024]
   - __overwrites__: *exp_bottle
     name: mvtec_grid
     trial_config:
       dataset: 
         __object__: src.usflows.explib.datasets.MVTecADSplit
         category: grid
+      model_cfg: 
+        type:
+          __class__: nf4ad.vaeflow.VAEFlow
+        params:
+          decoder:
+            output_size: [1024, 1024]
   - __overwrites__: *exp_bottle
     name: mvtec_wood
     trial_config:
       dataset: 
         __object__: src.usflows.explib.datasets.MVTecADSplit
         category: wood
+      model_cfg: 
+        type:
+          __class__: nf4ad.vaeflow.VAEFlow
+        params:
+          decoder:
+            output_size: [1024, 1024]
   - __overwrites__: *exp_bottle
     name: mvtec_screw
     trial_config:
       dataset: 
         __object__: src.usflows.explib.datasets.MVTecADSplit
         category: screw
+      model_cfg: 
+        type:
+          __class__: nf4ad.vaeflow.VAEFlow
+        params:
+          decoder:
+            output_size: [1024, 1024]
   - __overwrites__: *exp_bottle
     name: mvtec_pill
     trial_config:
       dataset: 
         __object__: src.usflows.explib.datasets.MVTecADSplit
         category: pill
+      model_cfg: 
+        type:
+          __class__: nf4ad.vaeflow.VAEFlow
+        params:
+          decoder:
+            output_size: [800, 800]
   - __overwrites__: *exp_bottle
     name: mvtec_transistor
     trial_config:
       dataset: 
         __object__: src.usflows.explib.datasets.MVTecADSplit
         category: transistor
+      model_cfg: 
+        type:
+          __class__: nf4ad.vaeflow.VAEFlow
+        params:
+          decoder:
+            output_size: [1024, 1024]
   - __overwrites__: *exp_bottle
     name: mvtec_metalnut
     trial_config:
       dataset: 
         __object__: src.usflows.explib.datasets.MVTecADSplit
         category: metal_nut
+      model_cfg: 
+        type:
+          __class__: nf4ad.vaeflow.VAEFlow
+        params:
+          decoder:
+            output_size: [700, 700]
