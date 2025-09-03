@@ -8,6 +8,14 @@ import math
 import numpy as np
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
+from sklearn.metrics import (
+    roc_auc_score,
+    average_precision_score,
+    precision_recall_curve,
+    precision_score,
+    recall_score,
+    f1_score,
+)
 
 
 class PreTrainedEncoder(nn.Module):
@@ -330,3 +338,287 @@ class VAEFlow(nn.Module):
                 losses.append(float(loss.detach().cpu()))
             epoch_losses.append(np.mean(losses))
         return epoch_losses
+
+    def elbo(
+        self,
+        x: torch.Tensor,
+        nsamples: int = 1,
+        beta: float = 1.0,
+        reduction: str = "mean",
+        device: Optional[torch.device] = None,
+    ) -> torch.Tensor:
+        """
+        Estimate the (beta-)ELBO for inputs x via Monte-Carlo with nsamples draws from q(z|x).
+
+        Args:
+            x: Input tensor (batch, ...).
+            nsamples: Number of Monte-Carlo samples to estimate the expectation.
+            beta: Weight for the KL term (beta-VAE style). ELBO = E_q[log p(x|z)] - beta * E_q[log q(z|x) - log p(z)].
+            reduction: "mean", "sum" or "none" (per-sample).
+            device: Optional device to perform computations on.
+
+        Returns:
+            Tensor: reduced ELBO (scalar if reduction="mean" or "sum"), or per-sample ELBO (if reduction="none").
+        """
+        if device is None:
+            device = next(self.parameters()).device if any(p.requires_grad for p in self.parameters()) else torch.device("cpu")
+
+        x = x.to(device)
+        self.eval()
+        with torch.no_grad():
+            mu, logvar = self.encoder(x)
+            batch = x.shape[0]
+            std = torch.exp(0.5 * logvar)
+
+            # accumulate ELBO estimates for each MC sample
+            elbo_samples = []
+            for _ in range(max(1, int(nsamples))):
+                eps = torch.randn_like(std, device=std.device)
+                z = mu + eps * std
+
+                # decode
+                x_recon = self.decoder(z)
+
+                # reconstruction negative log-likelihood per-sample
+                D = x[0].numel()
+                sigma2 = (self.sigma_min ** 2)
+                sq_err_per_sample = ((x - x_recon) ** 2).view(batch, -1).sum(dim=1)
+                recon_nll_per_sample = 0.5 * sq_err_per_sample / sigma2 + 0.5 * D * math.log(2.0 * math.pi * sigma2)
+                recon_logp_per_sample = -recon_nll_per_sample  # log p(x|z)
+
+                # q(z|x) log prob per-sample
+                std_z = std
+                q_dist = torch.distributions.Normal(mu, std_z)
+                log_q_z_per_sample = q_dist.log_prob(z).view(batch, -1).sum(dim=1)
+
+                # p(z) log prob via flow prior helper (robust to scalar/per-sample)
+                log_p_z = self.prior_log_prob(z)
+                if isinstance(log_p_z, torch.Tensor):
+                    if log_p_z.dim() == 0:
+                        log_p_z = log_p_z.repeat(batch)
+                else:
+                    log_p_z = torch.tensor(float(log_p_z), device=device).repeat(batch)
+
+                # KL per-sample = log_q - log_p
+                kl_per_sample = log_q_z_per_sample - log_p_z
+
+                # ELBO per-sample (with beta on KL)
+                elbo_per_sample = recon_logp_per_sample - beta * kl_per_sample
+                elbo_samples.append(elbo_per_sample)
+
+            # stack and average over MC samples
+            elbo_stack = torch.stack(elbo_samples, dim=0)  # (nsamples, batch)
+            elbo_est = elbo_stack.mean(dim=0)  # (batch,)
+
+            if reduction == "mean":
+                return elbo_est.mean().detach()
+            elif reduction == "sum":
+                return elbo_est.sum().detach()
+            elif reduction == "none":
+                return elbo_est.detach()
+            else:
+                raise ValueError(f"Unknown reduction '{reduction}', expected 'mean', 'sum' or 'none'.")
+
+class VAEFlowEvaluator:
+    """
+    Evaluator for VAEFlow models.
+
+    Args:
+        model (VAEFlow): trained model
+        dataset: dataset providing __len__ and __getitem__; items may be x or (x,y)
+        device: torch device (defaults to model device)
+        batch_size: evaluation batch size
+        score_type: one of {"anomaly","recon","latent","neg_elbo"}
+        nsamples: number of MC samples for ELBO estimation (used when score_type == "neg_elbo")
+        beta: beta weight for elbo/kl (passed to model.elbo when used)
+    """
+
+    def __init__(
+        self,
+        model: VAEFlow,
+        dataset,
+        device: Optional[torch.device] = None,
+        batch_size: int = 64,
+        score_type: str = "anomaly",
+        nsamples: int = 1,
+        beta: float = 1.0,
+    ):
+        self.model = model
+        if device is None:
+            try:
+                device = next(model.parameters()).device
+            except StopIteration:
+                device = torch.device("cpu")
+        self.device = device
+        self.dataset = dataset
+        self.batch_size = int(batch_size)
+        self.score_type = score_type
+        self.nsamples = int(max(1, nsamples))
+        self.beta = float(beta)
+        self.model.eval()
+
+    def _iter_batches(self):
+        n = len(self.dataset)
+        for i in range(0, n, self.batch_size):
+            j = min(n, i + self.batch_size)
+            items = [self.dataset[k] for k in range(i, j)]
+            if isinstance(items[0], (list, tuple)):
+                xs = torch.stack([it[0] for it in items]).to(self.device)
+                ys = [it[1] for it in items]
+            else:
+                xs = torch.stack(items).to(self.device)
+                ys = None
+            yield xs, ys
+
+    def scores_and_labels(self):
+        """
+        Compute per-sample anomaly scores and labels.
+
+        Returns:
+            scores: numpy array (n_samples,)
+            labels: numpy array (n_samples,) or None if dataset has no labels
+        """
+        scores = []
+        labels = [] if any(isinstance(self.dataset[k], (list, tuple)) for k in range(min(10, len(self.dataset)))) else None
+
+        with torch.no_grad():
+            for xs, ys in self._iter_batches():
+                # forward
+                x_recon, mu, logvar = self.model.forward(xs)
+                z = self.model.reparameterize(mu, logvar)
+
+                batch_b = xs.shape[0]
+                D = xs[0].numel()
+                sigma2 = (self.model.sigma_min ** 2)
+
+                # reconstruction NLL per sample
+                sq_err_per_sample = ((xs - x_recon) ** 2).view(batch_b, -1).sum(dim=1)
+                recon_nll_per_sample = 0.5 * sq_err_per_sample / sigma2 + 0.5 * D * math.log(2.0 * math.pi * sigma2)
+
+                # latent NLL per sample (negative log p(z))
+                log_p_z = self.model.prior_log_prob(z)
+                if isinstance(log_p_z, torch.Tensor):
+                    if log_p_z.dim() == 0:
+                        log_p_z = log_p_z.repeat(batch_b)
+                else:
+                    log_p_z = torch.tensor(float(log_p_z), device=self.device).repeat(batch_b)
+                latent_nll_per_sample = -log_p_z
+
+                if self.score_type == "anomaly":
+                    s_batch = (recon_nll_per_sample + latent_nll_per_sample).detach().cpu().numpy()
+                elif self.score_type == "recon":
+                    s_batch = recon_nll_per_sample.detach().cpu().numpy()
+                elif self.score_type == "latent":
+                    s_batch = latent_nll_per_sample.detach().cpu().numpy()
+                elif self.score_type == "neg_elbo":
+                    # model.elbo returns ELBO; we want negative ELBO as anomaly score
+                    elbo_vals = self.model.elbo(xs, nsamples=self.nsamples, beta=self.beta, reduction="none", device=self.device)
+                    # ensure tensor on cpu
+                    s_batch = (-elbo_vals).detach().cpu().numpy()
+                else:
+                    raise ValueError(f"Unknown score_type '{self.score_type}'")
+
+                scores.extend(s_batch.tolist())
+
+                if ys is not None:
+                    labels.extend([int(y) for y in ys])
+
+        scores = np.array(scores)
+        labels = np.array(labels) if labels is not None and len(labels) > 0 else None
+        return scores, labels
+
+    def compute_roc_pr(self, return_curve: bool = False):
+        """
+        Compute ROC AUC and PR AUC.
+
+        Returns:
+            roc_auc, pr_auc, (optional) dict with curve arrays {fpr,tpr,thresholds,precision,recall,pr_thresholds}
+        """
+        scores, labels = self.scores_and_labels()
+        if labels is None:
+            return float("nan"), float("nan"), None if return_curve else (float("nan"), float("nan"))
+
+        # need at least one positive and one negative
+        if labels.min() == labels.max():
+            return float("nan"), float("nan"), None if return_curve else (float("nan"), float("nan"))
+
+        try:
+            roc_auc = float(roc_auc_score(labels, scores))
+        except Exception:
+            roc_auc = float("nan")
+        try:
+            pr_auc = float(average_precision_score(labels, scores))
+        except Exception:
+            pr_auc = float("nan")
+
+        if not return_curve:
+            return roc_auc, pr_auc
+
+        # compute precision-recall curve arrays
+        precision, recall, pr_thresholds = precision_recall_curve(labels, scores)
+        # for ROC curve we can compute fpr/tpr thresholds via sklearn if needed (omitted here to stay concise)
+        return roc_auc, pr_auc, {
+            "precision": precision,
+            "recall": recall,
+            "pr_thresholds": pr_thresholds,
+        }
+
+    def precision_recall_at_threshold(self, threshold: float):
+        """
+        Compute precision and recall at a given score threshold.
+
+        Args:
+            threshold: decision threshold on scores; samples with score >= threshold are predicted positive.
+
+        Returns:
+            precision, recall, f1
+        """
+        scores, labels = self.scores_and_labels()
+        if labels is None:
+            return float("nan"), float("nan"), float("nan")
+        preds = (scores >= float(threshold)).astype(int)
+        p = precision_score(labels, preds, zero_division=0)
+        r = recall_score(labels, preds, zero_division=0)
+        f = f1_score(labels, preds, zero_division=0)
+        return float(p), float(r), float(f)
+
+    def best_f1_threshold(self):
+        """
+        Find threshold that maximizes F1 on the dataset.
+
+        Returns:
+            best_threshold, best_f1, precision_array, recall_array, thresholds_array
+        """
+        scores, labels = self.scores_and_labels()
+        if labels is None:
+            return None, float("nan"), None, None, None
+
+        precision, recall, thresholds = precision_recall_curve(labels, scores)
+        # precision_recall_curve returns thresholds of length n-1; compute F1 for each threshold
+        # align thresholds with precision/recall: precision[i], recall[i] correspond to threshold thresholds[i-1]
+        # we'll compute F1 across precision/recall (skip last point where threshold is undefined)
+        f1s = (2 * precision * recall) / (precision + recall + 1e-12)
+        # find best index
+        best_idx = int(np.nanargmax(f1s))
+        # derive threshold: if best_idx == len(thresholds) -> threshold slightly below min, handle gracefully
+        if best_idx == 0:
+            best_threshold = thresholds[0] if len(thresholds) > 0 else None
+        else:
+            thr_idx = best_idx - 1
+            best_threshold = thresholds[thr_idx] if thr_idx < len(thresholds) else thresholds[-1] if len(thresholds) > 0 else None
+
+        return best_threshold, float(np.nanmax(f1s)), precision, recall, thresholds
+
+    def summary(self):
+        """
+        Convenience: compute and return main metrics dictionary.
+        """
+        roc_auc, pr_auc, _ = self.compute_roc_pr(return_curve=True)
+        best_thr, best_f1, _, _, _ = self.best_f1_threshold()
+        return {
+            "roc_auc": roc_auc,
+            "pr_auc": pr_auc,
+            "best_f1": best_f1,
+            "best_threshold": best_thr,
+            "score_type": self.score_type,
+        }

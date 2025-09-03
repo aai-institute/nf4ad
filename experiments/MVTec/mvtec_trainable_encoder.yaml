@@ -25,6 +25,7 @@ experiments:
         category: bottle
         space_to_depth_factor: 1
         load_into_memory: false
+        device: "cuda"
       epochs: 200000
       patience: 10
       batch_size: 
@@ -51,6 +52,7 @@ experiments:
             class: 
               __class__: src.usflows.flows.USFlow
             params:
+              device: "cuda"
               soft_training: 
                 __eval__: tune.choice([False])
               training_noise_prior:
@@ -75,9 +77,9 @@ experiments:
               base_distribution:
                 __object__: pyro.distributions.Normal
                 loc: 
-                  __eval__: torch.zeros([128]).to("cpu")
+                  __eval__: torch.zeros([128]).to("cuda")
                 scale: 
-                  __eval__: torch.ones([128]).to("cpu")
+                  __eval__: torch.ones([128]).to("cuda")
   - __overwrites__: *exp_bottle
     name: mvtec_cable
     trial_config:
