@@ -25,6 +25,7 @@ experiments:
         category: bottle
         space_to_depth_factor: 1
         load_into_memory: false
+        device: "cuda"
       epochs: 200000
       patience: 10
       batch_size: 
