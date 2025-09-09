@@ -10,7 +10,7 @@ experiments:
       max_t: 1000000
       grace_period: 1000000
       reduction_factor: 2
-    num_hyperopt_samples: 1
+    num_hyperopt_samples: 3
     gpus_per_trial: 0
     cpus_per_trial: 16
     tuner_params: 
@@ -19,7 +19,6 @@ experiments:
     trial_config:
       logging:
         images: false
-        image_shape: [28, 28]
       dataset: 
         __object__: src.usflows.explib.datasets.MVTecADSplit
         category: bottle
@@ -35,22 +34,22 @@ experiments:
           __class__: src.usflows.sophia.SophiaG
         params:
           lr: 
-            __eval__: 1e-3
+            __eval__: 1e-5
           weight_decay: 0.0
       model_cfg: 
         type:
           __class__: nf4ad.vaeflow.VAEFlow
         params:
-          latent_dim: 128
+          latent_dim: 256
           encoder_arch: wide_resnet50_2
           encoder_trainable: false
           decoder:
             __object__: nf4ad.vaeflow.SimpleDecoder
-            latent_dim: 128
+            latent_dim: 256
             output_size: [900, 900]
           flow_prior:
             class: 
-              __class__: src.usflows.flows.USFlow
+              __class__: nf4ad.flows.NonUSFlow
             params:
               device: "cuda"
               soft_training: 
@@ -65,21 +64,23 @@ experiments:
               lu_transform: 1
               householder: 0
               conditioner_cls:
-                __class__: pyro.nn.DenseNN
+                __class__: src.usflows.networks.ConvNet
               conditioner_args:
-                input_dim: 128
-                hidden_dims: [512, 256]
-                param_dims: [128]
-              in_dims: [128]
+                in_dims: [256]
+                c_hidden: [512, 256]
+                c_out: 512
+                nonlinearity:
+                  __eval__: tune.choice([torch.nn.ReLU()])
+              in_dims: [256]
               affine_conjugation: true
               nonlinearity:
                 __eval__: tune.choice([torch.nn.ReLU()])
               base_distribution:
                 __object__: pyro.distributions.Normal
                 loc: 
-                  __eval__: torch.zeros([128]).to("cuda")
+                  __eval__: torch.zeros([256]).to("cuda")
                 scale: 
-                  __eval__: torch.ones([128]).to("cuda")
+                  __eval__: torch.ones([256]).to("cuda")
   - __overwrites__: *exp_bottle
     name: mvtec_cable
     trial_config:

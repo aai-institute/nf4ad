@@ -1,0 +1,251 @@
+---
+__object__: src.usflows.explib.base.ExperimentCollection
+name: MVTecAD_fixed_encoder
+experiments:
+  - &exp_bottle
+    __object__: nf4ad.hyperopt.VAEFlowHyperoptExperiment
+    name: mvtec_bottle
+    scheduler: 
+      __object__: ray.tune.schedulers.ASHAScheduler
+      max_t: 1000000
+      grace_period: 1000000
+      reduction_factor: 2
+    num_hyperopt_samples: 3
+    gpus_per_trial: 0
+    cpus_per_trial: 16
+    tuner_params: 
+      metric: val_loss
+      mode: min
+    trial_config:
+      logging:
+        images: false
+      dataset: 
+        __object__: src.usflows.explib.datasets.MVTecADSplit
+        category: bottle
+        space_to_depth_factor: 1
+        load_into_memory: false
+        device: "cuda"
+      epochs: 200000
+      patience: 10
+      batch_size: 
+        __eval__: tune.choice([16])
+      optim_cfg: 
+        optimizer:
+          __class__: src.usflows.sophia.SophiaG
+        params:
+          lr: 
+            __eval__: 1e-5
+          weight_decay: 0.0
+      model_cfg: 
+        type:
+          __class__: nf4ad.vaeflow.VAEFlow
+        params:
+          latent_dim: 256
+          encoder_arch: wide_resnet50_2
+          encoder_trainable: false
+          decoder:
+            __object__: nf4ad.vaeflow.SimpleDecoder
+            latent_dim: 256
+            output_size: [900, 900]
+          flow_prior:
+            class: 
+              __class__: src.usflows.flows.USFlow
+            params:
+              device: "cuda"
+              soft_training: 
+                __eval__: tune.choice([False])
+              training_noise_prior:
+                __object__: pyro.distributions.Uniform
+                low:
+                  __eval__: 1e-20
+                high: 0.01
+              prior_scale: 1.0
+              coupling_blocks: 10
+              lu_transform: 1
+              householder: 0
+              conditioner_cls:
+                __class__: src.usflows.networks.ConvNet
+              conditioner_args:
+                in_dims: [1, 256]
+                c_hidden: [512, 256]
+                c_out: 256
+                nonlinearity:
+                  __eval__: tune.choice([torch.nn.ReLU()])
+              in_dims: [256]
+              affine_conjugation: true
+              nonlinearity:
+                __eval__: tune.choice([torch.nn.ReLU()])
+              base_distribution:
+                __object__: pyro.distributions.Normal
+                loc: 
+                  __eval__: torch.zeros([256]).to("cuda")
+                scale: 
+                  __eval__: torch.ones([256]).to("cuda")
+  - __overwrites__: *exp_bottle
+    name: mvtec_cable
+    trial_config:
+      dataset: 
+        __object__: src.usflows.explib.datasets.MVTecADSplit
+        category: cable
+      model_cfg: 
+        type:
+          __class__: nf4ad.vaeflow.VAEFlow
+        params:
+          decoder:
+            output_size: [1024, 1024]
+  - __overwrites__: *exp_bottle
+    name: mvtec_capsule
+    trial_config:
+      dataset: 
+        __object__: src.usflows.explib.datasets.MVTecADSplit
+        category: capsule
+      model_cfg: 
+        type:
+          __class__: nf4ad.vaeflow.VAEFlow
+        params:
+          decoder:
+            output_size: [1000, 1000]
+  - __overwrites__: *exp_bottle
+    name: mvtec_hazelnut
+    trial_config:
+      dataset: 
+        __object__: src.usflows.explib.datasets.MVTecADSplit
+        category: hazelnut
+      model_cfg: 
+        type:
+          __class__: nf4ad.vaeflow.VAEFlow
+        params:
+          decoder:
+            output_size: [1024, 1024]
+  - __overwrites__: *exp_bottle
+    name: mvtec_carpet
+    trial_config:
+      dataset: 
+        __object__: src.usflows.explib.datasets.MVTecADSplit
+        category: carpet
+      model_cfg: 
+        type:
+          __class__: nf4ad.vaeflow.VAEFlow
+        params:
+          decoder:
+            output_size: [1024, 1024]
+  - __overwrites__: *exp_bottle
+    name: mvtec_leather
+    trial_config:
+      dataset: 
+        __object__: src.usflows.explib.datasets.MVTecADSplit
+        category: leather
+      model_cfg: 
+        type:
+          __class__: nf4ad.vaeflow.VAEFlow
+        params:
+          decoder:
+            output_size: [1024, 1024]
+  - __overwrites__: *exp_bottle
+    name: mvtec_tile
+    trial_config:
+      dataset: 
+        __object__: src.usflows.explib.datasets.MVTecADSplit
+        category: tile
+      model_cfg: 
+        type:
+          __class__: nf4ad.vaeflow.VAEFlow
+        params:
+          decoder:
+            output_size: [840, 840]
+  - __overwrites__: *exp_bottle
+    name: mvtec_zipper
+    trial_config:
+      dataset: 
+        __object__: src.usflows.explib.datasets.MVTecADSplit
+        category: zipper
+      model_cfg: 
+        type:
+          __class__: nf4ad.vaeflow.VAEFlow
+        params:
+          decoder:
+            output_size: [1024, 1024]
+  - __overwrites__: *exp_bottle
+    name: mvtec_toothbrush
+    trial_config:
+      dataset: 
+        __object__: src.usflows.explib.datasets.MVTecADSplit
+        category: toothbrush
+      model_cfg: 
+        type:
+          __class__: nf4ad.vaeflow.VAEFlow
+        params:
+          decoder:
+            output_size: [1024, 1024]
+  - __overwrites__: *exp_bottle
+    name: mvtec_grid
+    trial_config:
+      dataset: 
+        __object__: src.usflows.explib.datasets.MVTecADSplit
+        category: grid
+      model_cfg: 
+        type:
+          __class__: nf4ad.vaeflow.VAEFlow
+        params:
+          decoder:
+            output_size: [1024, 1024]
+  - __overwrites__: *exp_bottle
+    name: mvtec_wood
+    trial_config:
+      dataset: 
+        __object__: src.usflows.explib.datasets.MVTecADSplit
+        category: wood
+      model_cfg: 
+        type:
+          __class__: nf4ad.vaeflow.VAEFlow
+        params:
+          decoder:
+            output_size: [1024, 1024]
+  - __overwrites__: *exp_bottle
+    name: mvtec_screw
+    trial_config:
+      dataset: 
+        __object__: src.usflows.explib.datasets.MVTecADSplit
+        category: screw
+      model_cfg: 
+        type:
+          __class__: nf4ad.vaeflow.VAEFlow
+        params:
+          decoder:
+            output_size: [1024, 1024]
+  - __overwrites__: *exp_bottle
+    name: mvtec_pill
+    trial_config:
+      dataset: 
+        __object__: src.usflows.explib.datasets.MVTecADSplit
+        category: pill
+      model_cfg: 
+        type:
+          __class__: nf4ad.vaeflow.VAEFlow
+        params:
+          decoder:
+            output_size: [800, 800]
+  - __overwrites__: *exp_bottle
+    name: mvtec_transistor
+    trial_config:
+      dataset: 
+        __object__: src.usflows.explib.datasets.MVTecADSplit
+        category: transistor
+      model_cfg: 
+        type:
+          __class__: nf4ad.vaeflow.VAEFlow
+        params:
+          decoder:
+            output_size: [1024, 1024]
+  - __overwrites__: *exp_bottle
+    name: mvtec_metalnut
+    trial_config:
+      dataset: 
+        __object__: src.usflows.explib.datasets.MVTecADSplit
+        category: metal_nut
+      model_cfg: 
+        type:
+          __class__: nf4ad.vaeflow.VAEFlow
+        params:
+          decoder:
+            output_size: [700, 700]
