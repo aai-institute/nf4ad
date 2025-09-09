@@ -10,7 +10,7 @@ experiments:
       max_t: 1000000
       grace_period: 1000000
       reduction_factor: 2
-    num_hyperopt_samples: 1
+    num_hyperopt_samples: 3
     gpus_per_trial: 0
     cpus_per_trial: 16
     tuner_params: 
@@ -35,7 +35,7 @@ experiments:
           __class__: src.usflows.sophia.SophiaG
         params:
           lr: 
-            __eval__: 1e-3
+            __eval__: 1e-5
           weight_decay: 0.0
       model_cfg: 
         type:
@@ -50,7 +50,7 @@ experiments:
             output_size: [900, 900]
           flow_prior:
             class: 
-              __class__: src.usflows.flows.USFlow
+              __class__: nf4ad.flows.NonUSFlow
             params:
               device: "cuda"
               soft_training: 
@@ -70,7 +70,7 @@ experiments:
                 input_dim: 128
                 hidden_dims: [512, 256]
                 param_dims: [128]
-              in_dims: [128]
+              in_dims: [128, 128]
               affine_conjugation: true
               nonlinearity:
                 __eval__: tune.choice([torch.nn.ReLU()])
