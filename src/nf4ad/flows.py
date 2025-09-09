@@ -157,4 +157,13 @@ class NonUSFlow(_BaseFlow):
         else:
             return 0
 
-    # other methods (log_prob, sample, to, simplify) are inherited from _BaseFlow and behave the same
+    def log_abs_det_jacobian(self, x: torch.Tensor) -> torch.Tensor:
+        log_abs_det_jacobian = 0
+        for p in reversed(self.layers):
+            try:
+                y = p.backward(x)
+                log_abs_det_jacobian = log_abs_det_jacobian - p.log_abs_det_jacobian(y, x)
+            except Exception:
+                # some layers may not implement log_abs_det_jacobian
+                continue
+        return log_abs_det_jacobian

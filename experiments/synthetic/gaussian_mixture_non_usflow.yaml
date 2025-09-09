@@ -31,7 +31,7 @@ experiments:
             loc:
               __eval__: torch.tensor([[-1.0, -1.0], [1.0, 1.0]]) 
             covariance_matrix:
-              __eval__: torch.stack([torch.eye(2)] * 2)
+              __eval__: torch.stack([torch.diag(torch.tensor([5.0, .5])), torch.eye(2)])
             mixture_weights:
               __eval__: torch.tensor([0.5, 0.5])
           num_train: 50000
@@ -92,7 +92,7 @@ experiments:
             loc:
               __eval__: torch.tensor([[-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]]) 
             covariance_matrix:
-              __eval__: torch.stack([torch.eye(8)] * 2)
+              __eval__: torch.stack([torch.diag(torch.tensor([5.0] * 4 + [.5] * 4)), torch.eye(8)])
             mixture_weights:
               __eval__: torch.tensor([0.5, 0.5])
       model_cfg:
@@ -114,7 +114,7 @@ experiments:
             loc:
               __eval__: torch.tensor([[-1.0] * 32, [1.0] * 32]) 
             covariance_matrix:
-              __eval__: torch.stack([torch.eye(32)] * 2)
+              __eval__: torch.stack([torch.diag(torch.tensor([5.0] * 16 + [.5] * 16)), torch.eye(32)])
             mixture_weights:
               __eval__: torch.tensor([0.5, 0.5])
       model_cfg:
@@ -137,7 +137,7 @@ experiments:
             loc:
               __eval__: torch.tensor([[-1.0] * 128, [1.0] * 128]) 
             covariance_matrix:
-              __eval__: torch.stack([torch.eye(128)] * 2)
+              __eval__: torch.stack([torch.diag(torch.tensor([5.0] * 64 + [.5] * 64)), torch.eye(128)])
             mixture_weights:
               __eval__: torch.tensor([0.5, 0.5])
       model_cfg:
