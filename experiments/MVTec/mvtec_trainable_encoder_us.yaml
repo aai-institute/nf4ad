@@ -11,8 +11,9 @@ experiments:
       grace_period: 1000000
       reduction_factor: 2
     num_hyperopt_samples: 3
-    gpus_per_trial: 0
+    gpus_per_trial: 1
     cpus_per_trial: 16
+    device: "cuda"
     tuner_params: 
       metric: val_loss
       mode: min
@@ -66,7 +67,7 @@ experiments:
               conditioner_cls:
                 __class__: src.usflows.networks.ConvNet
               conditioner_args:
-                in_dims: [1, 256]
+                in_dims: [256]
                 c_hidden: [512, 256]
                 c_out: 256
                 nonlinearity:
