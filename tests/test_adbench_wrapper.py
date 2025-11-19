@@ -171,13 +171,8 @@ class TestADBenchVAEFlowTabular:
         
         # Soft assertion: at least the median should reflect some learning
         # If this fails, it might just be due to randomness in synthetic data
-        try:
-            assert anomaly_median > normal_median * 0.8, \
-                f"Anomaly median ({anomaly_median:.2e}) should be reasonably higher than normal median ({normal_median:.2e})"
-        except AssertionError as e:
-            # Don't fail the test, just warn
-            import warnings
-            warnings.warn(f"Model performance check: {str(e)}")
+        assert anomaly_median > normal_median * 0.8, \
+            f"Anomaly median ({anomaly_median:.2e}) should be reasonably higher than normal median ({normal_median:.2e})"
 
 
 class TestIntegration:
