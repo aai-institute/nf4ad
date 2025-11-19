@@ -122,12 +122,14 @@ class ADBenchVAEFlow:
                     nn.Conv2d(64, 128, 3, stride=2, padding=1),
                     nn.ReLU(),
                 )
-                # Calculate flattened size
+                # Calculate flattened size after convolutions.
+                # We use a dummy forward pass to determine the output shape of the conv layers,
+                # since the output size depends on the input size and convolution parameters.
                 with torch.no_grad():
                     dummy = torch.zeros(1, input_channels, h, w)
                     out = self.conv_layers(dummy)
-                    self.flat_size = out.view(1, -1).shape[1]
-                
+                    self.conv_output_shape = out.shape  # Store intermediate output shape for clarity
+                    self.flat_size = out.view(1, -1).shape[1]  # Flatten to get feature size for FC layers
                 self.fc_mu = nn.Linear(self.flat_size, latent_dim)
                 self.fc_logvar = nn.Linear(self.flat_size, latent_dim)
                 
