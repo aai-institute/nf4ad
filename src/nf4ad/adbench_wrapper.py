@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 from typing import Optional
-from .vaeflow import VAEFlow, PreTrainedEncoder, SimpleDecoder
+from .vaeflow import VAEFlow, SimpleDecoder
 from .flows import Flow
 
 
