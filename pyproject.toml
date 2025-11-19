@@ -8,6 +8,8 @@ packages = [{include = "nf4ad", from="src"}, {include = "scripts"}]
 
 [tool.poetry.dependencies]
 python = "^3.10"
+
+[tool.poetry.group.dev.dependencies]
 pytest = "^8.4.2"
 
 [build-system]
