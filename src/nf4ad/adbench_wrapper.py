@@ -4,7 +4,7 @@ Wrapper classes to integrate VAEFlow with ADBench framework.
 import torch
 import torch.nn as nn
 import numpy as np
-from typing import Optional
+from typing import Optional, List
 from .vaeflow import VAEFlow, SimpleDecoder
 from .flows import Flow
 
@@ -35,6 +35,8 @@ class ADBenchVAEFlow:
         device: Optional[str] = None,
         gradient_clip: Optional[float] = None,
         verbose: bool = True,
+        patience: Optional[int] = None,
+        min_delta: float = 1e-4,
     ):
         """
         Args:
@@ -53,6 +55,8 @@ class ADBenchVAEFlow:
             device: Device to use ('cuda', 'cpu', or 'mps')
             gradient_clip: Gradient clipping norm
             verbose: Print training progress
+            patience: Number of epochs with no improvement for early stopping (None to disable)
+            min_delta: Minimum change in loss to qualify as an improvement
         """
         self.latent_dim = latent_dim
         self.encoder_arch = encoder_arch
@@ -67,6 +71,8 @@ class ADBenchVAEFlow:
         self.beta = beta
         self.gradient_clip = gradient_clip
         self.verbose = verbose
+        self.patience = patience
+        self.min_delta = min_delta
         
         # Setup device
         if device is None:
@@ -108,6 +114,9 @@ class ADBenchVAEFlow:
         )
         self.model.to(self.device)
         
+        # Store training history
+        self.training_losses_: Optional[List[float]] = None
+        
     def _create_simple_encoder(self) -> nn.Module:
         """Create a simple CNN encoder for small images or tabular data."""
         class SimpleEncoder(nn.Module):
@@ -142,13 +151,16 @@ class ADBenchVAEFlow:
         
         return SimpleEncoder(self.input_channels, self.input_size, self.latent_dim)
     
-    def fit(self, X_train: np.ndarray, y_train: Optional[np.ndarray] = None):
+    def fit(self, X_train: np.ndarray, y_train: Optional[np.ndarray] = None) -> 'ADBenchVAEFlow':
         """
-        Fit the model on training data.
+        Fit the model on training data with early stopping.
         
         Args:
             X_train: Training data, shape (n_samples, n_features) or (n_samples, C, H, W)
             y_train: Labels (ignored, only normal data expected)
+            
+        Returns:
+            self with training_losses_ attribute set
         """
         # Convert to tensor
         X_tensor = torch.FloatTensor(X_train)
@@ -163,22 +175,75 @@ class ADBenchVAEFlow:
             print(f"Input shape: {X_tensor.shape}")
             print(f"Device: {self.device}")
         
-        # Train model
-        losses = self.model.fit(
-            data_train=X_tensor,
-            optim_cls=torch.optim.Adam,
-            optim_params={"lr": self.lr},
-            batch_size=self.batch_size,
-            shuffle=True,
-            gradient_clip=self.gradient_clip,
-            device=self.device,
-            epochs=self.epochs,
-            beta=self.beta,
-        )
+        # Create data loader
+        from torch.utils.data import TensorDataset, DataLoader
+        dataset = TensorDataset(X_tensor)
+        loader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
+        
+        # Setup optimizer
+        optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
+        
+        # Early stopping variables
+        best_loss = float('inf')
+        patience_counter = 0
+        best_state = None
+        
+        # Training loop
+        self.model.train()
+        epoch_losses = []
+        
+        for epoch in range(self.epochs):
+            losses = []
+            for (batch,) in loader:
+                batch = batch.to(self.device)
+                
+                optimizer.zero_grad()
+                
+                # Forward pass
+                x_recon, mu, logvar = self.model(batch)
+                z = self.model.reparameterize(mu, logvar)
+                
+                # Compute loss
+                loss = self.model.loss_function(batch, x_recon, mu, logvar, z, beta=self.beta)
+                
+                loss.backward()
+                
+                if self.gradient_clip is not None:
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.gradient_clip)
+                
+                optimizer.step()
+                losses.append(float(loss.detach().cpu()))
+            
+            epoch_loss = np.mean(losses)
+            epoch_losses.append(epoch_loss)
+            
+            # Early stopping check
+            if self.patience is not None:
+                if epoch_loss < best_loss - self.min_delta:
+                    best_loss = epoch_loss
+                    patience_counter = 0
+                    best_state = {k: v.cpu().clone() for k, v in self.model.state_dict().items()}
+                else:
+                    patience_counter += 1
+                
+                if patience_counter >= self.patience:
+                    if self.verbose:
+                        print(f"Early stopping at epoch {epoch + 1}/{self.epochs}")
+                    break
+            
+            if self.verbose and (epoch + 1) % 10 == 0:
+                print(f"Epoch {epoch + 1}/{self.epochs}, Loss: {epoch_loss:.4f}")
+        
+        # Restore best model if early stopping was triggered
+        if best_state is not None and self.patience is not None:
+            self.model.load_state_dict({k: v.to(self.device) for k, v in best_state.items()})
+            if self.verbose:
+                print(f"Restored best model with loss: {best_loss:.4f}")
         
         if self.verbose:
-            print(f"Training completed. Final loss: {losses[-1]:.4f}")
+            print(f"Training completed. Final loss: {epoch_losses[-1]:.4f}")
         
+        self.training_losses_ = epoch_losses
         return self
     
     def predict_score(self, X_test: np.ndarray) -> np.ndarray:
@@ -313,6 +378,8 @@ class ADBenchFlow:
         device: Optional[str] = None,
         gradient_clip: Optional[float] = None,
         verbose: bool = True,
+        patience: Optional[int] = None,
+        min_delta: float = 1e-4,
     ):
         """
         Args:
@@ -323,6 +390,8 @@ class ADBenchFlow:
             device: Device to use ('cuda', 'cpu', or 'mps')
             gradient_clip: Gradient clipping norm
             verbose: Print training progress
+            patience: Number of epochs with no improvement for early stopping (None to disable)
+            min_delta: Minimum change in loss to qualify as an improvement
         """
         self.flow_model = flow_model
         self.batch_size = batch_size
@@ -330,6 +399,8 @@ class ADBenchFlow:
         self.lr = lr
         self.gradient_clip = gradient_clip
         self.verbose = verbose
+        self.patience = patience
+        self.min_delta = min_delta
         
         # Setup device
         if device is None:
@@ -343,14 +414,20 @@ class ADBenchFlow:
             self.device = torch.device(device)
         
         self.flow_model.to(self.device)
+        
+        # Store training history
+        self.training_losses_: Optional[List[float]] = None
     
-    def fit(self, X_train: np.ndarray, y_train: Optional[np.ndarray] = None):
+    def fit(self, X_train: np.ndarray, y_train: Optional[np.ndarray] = None) -> 'ADBenchFlow':
         """
-        Fit the flow model on training data.
+        Fit the flow model on training data with early stopping.
         
         Args:
             X_train: Training data, shape (n_samples, n_features)
             y_train: Labels (ignored, only normal data expected)
+            
+        Returns:
+            self with training_losses_ attribute set
         """
         # Convert to tensor
         X_tensor = torch.FloatTensor(X_train)
@@ -367,6 +444,11 @@ class ADBenchFlow:
         
         # Setup optimizer
         optimizer = torch.optim.Adam(self.flow_model.parameters(), lr=self.lr)
+        
+        # Early stopping variables
+        best_loss = float('inf')
+        patience_counter = 0
+        best_state = None
         
         # Training loop
         self.flow_model.train()
@@ -394,13 +476,33 @@ class ADBenchFlow:
             epoch_loss = np.mean(losses)
             epoch_losses.append(epoch_loss)
             
+            # Early stopping check
+            if self.patience is not None:
+                if epoch_loss < best_loss - self.min_delta:
+                    best_loss = epoch_loss
+                    patience_counter = 0
+                    best_state = {k: v.cpu().clone() for k, v in self.flow_model.state_dict().items()}
+                else:
+                    patience_counter += 1
+                
+                if patience_counter >= self.patience:
+                    if self.verbose:
+                        print(f"Early stopping at epoch {epoch + 1}/{self.epochs}")
+                    break
+            
             if self.verbose and (epoch + 1) % 10 == 0:
                 print(f"Epoch {epoch + 1}/{self.epochs}, Loss: {epoch_loss:.4f}")
+        
+        # Restore best model if early stopping was triggered
+        if best_state is not None and self.patience is not None:
+            self.flow_model.load_state_dict({k: v.to(self.device) for k, v in best_state.items()})
+            if self.verbose:
+                print(f"Restored best model with loss: {best_loss:.4f}")
         
         if self.verbose:
             print(f"Training completed. Final loss: {epoch_losses[-1]:.4f}")
         
-        self.training_losses = epoch_losses
+        self.training_losses_ = epoch_losses
         return self
     
     def predict_score(self, X_test: np.ndarray) -> np.ndarray:
