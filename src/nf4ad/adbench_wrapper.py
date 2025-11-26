@@ -291,3 +291,159 @@ class ADBenchVAEFlowTabular(ADBenchVAEFlow):
         """Compute anomaly scores for tabular data."""
         X_img = self._tabular_to_image(X_test)
         return super().predict_score(X_img)
+
+
+class ADBenchFlow:
+    """
+    Wrapper for Flow models (USFlow/NonUSFlow) to work with ADBench's interface.
+    
+    Uses the flow model's negative log-likelihood as anomaly score.
+    
+    ADBench expects:
+    - fit(X_train, y_train=None)
+    - predict_score(X_test) -> anomaly scores
+    """
+    
+    def __init__(
+        self,
+        flow_model: Flow,
+        batch_size: int = 32,
+        epochs: int = 50,
+        lr: float = 1e-3,
+        device: Optional[str] = None,
+        gradient_clip: Optional[float] = None,
+        verbose: bool = True,
+    ):
+        """
+        Args:
+            flow_model: Flow model (USFlow or NonUSFlow)
+            batch_size: Training batch size
+            epochs: Number of training epochs
+            lr: Learning rate
+            device: Device to use ('cuda', 'cpu', or 'mps')
+            gradient_clip: Gradient clipping norm
+            verbose: Print training progress
+        """
+        self.flow_model = flow_model
+        self.batch_size = batch_size
+        self.epochs = epochs
+        self.lr = lr
+        self.gradient_clip = gradient_clip
+        self.verbose = verbose
+        
+        # Setup device
+        if device is None:
+            if torch.cuda.is_available():
+                self.device = torch.device("cuda")
+            elif torch.backends.mps.is_available():
+                self.device = torch.device("mps")
+            else:
+                self.device = torch.device("cpu")
+        else:
+            self.device = torch.device(device)
+        
+        self.flow_model.to(self.device)
+    
+    def fit(self, X_train: np.ndarray, y_train: Optional[np.ndarray] = None):
+        """
+        Fit the flow model on training data.
+        
+        Args:
+            X_train: Training data, shape (n_samples, n_features)
+            y_train: Labels (ignored, only normal data expected)
+        """
+        # Convert to tensor
+        X_tensor = torch.FloatTensor(X_train)
+        
+        if self.verbose:
+            print(f"Training Flow model on {len(X_tensor)} samples...")
+            print(f"Input shape: {X_tensor.shape}")
+            print(f"Device: {self.device}")
+        
+        # Create data loader
+        from torch.utils.data import TensorDataset, DataLoader
+        dataset = TensorDataset(X_tensor)
+        loader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
+        
+        # Setup optimizer
+        optimizer = torch.optim.Adam(self.flow_model.parameters(), lr=self.lr)
+        
+        # Training loop
+        self.flow_model.train()
+        epoch_losses = []
+        
+        for epoch in range(self.epochs):
+            losses = []
+            for (batch,) in loader:
+                batch = batch.to(self.device)
+                
+                optimizer.zero_grad()
+                
+                # Negative log-likelihood
+                log_prob = self.flow_model.log_prob(batch)
+                loss = -log_prob.mean()  # Maximize log-likelihood = minimize negative log-likelihood
+                
+                loss.backward()
+                
+                if self.gradient_clip is not None:
+                    torch.nn.utils.clip_grad_norm_(self.flow_model.parameters(), self.gradient_clip)
+                
+                optimizer.step()
+                losses.append(float(loss.detach().cpu()))
+            
+            epoch_loss = np.mean(losses)
+            epoch_losses.append(epoch_loss)
+            
+            if self.verbose and (epoch + 1) % 10 == 0:
+                print(f"Epoch {epoch + 1}/{self.epochs}, Loss: {epoch_loss:.4f}")
+        
+        if self.verbose:
+            print(f"Training completed. Final loss: {epoch_losses[-1]:.4f}")
+        
+        self.training_losses = epoch_losses
+        return self
+    
+    def predict_score(self, X_test: np.ndarray) -> np.ndarray:
+        """
+        Compute anomaly scores for test data.
+        
+        Anomaly score = negative log probability under the flow model.
+        
+        Args:
+            X_test: Test data, shape (n_samples, n_features)
+            
+        Returns:
+            Anomaly scores, shape (n_samples,)
+        """
+        # Convert to tensor
+        X_tensor = torch.FloatTensor(X_test).to(self.device)
+        
+        # Compute negative log probability as anomaly score
+        self.flow_model.eval()
+        with torch.no_grad():
+            log_prob = self.flow_model.log_prob(X_tensor)
+            # Handle both per-sample and batch-sum log_prob
+            if log_prob.dim() == 0:
+                # Scalar (sum over batch) - shouldn't happen in eval mode
+                scores = -log_prob.item() / len(X_tensor) * torch.ones(len(X_tensor))
+            else:
+                # Per-sample log probabilities
+                scores = -log_prob
+        
+        return scores.cpu().numpy()
+    
+    def predict(self, X_test: np.ndarray, threshold: Optional[float] = None) -> np.ndarray:
+        """
+        Predict anomaly labels.
+        
+        Args:
+            X_test: Test data
+            threshold: Decision threshold (if None, use median of scores)
+            
+        Returns:
+            Binary predictions (1 for anomaly, 0 for normal)
+        """
+        scores = self.predict_score(X_test)
+        if threshold is None:
+            threshold = np.median(scores)
+        return (scores > threshold).astype(int)

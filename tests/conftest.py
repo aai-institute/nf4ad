@@ -58,7 +58,7 @@ def synthetic_tabular_data():
     
     n_train = 200
     n_test = 100
-    n_features = 50
+    n_features = 20  # Reduced from 50 to make tests faster
     
     # Normal samples (Gaussian)
     X_train = np.random.randn(n_train, n_features).astype(np.float32)
@@ -88,6 +88,14 @@ def simple_flow_prior(device):
 def flow_prior_16(device):
     """Create a simple flow prior for testing with latent_dim=16."""
     return _create_flow_prior(16, device)
+
+
+@pytest.fixture
+def create_flow_prior(device):
+    """Factory fixture to create flow priors with custom dimensions."""
+    def _factory(latent_dim: int):
+        return _create_flow_prior(latent_dim, device)
+    return _factory
 
 
 def _create_flow_prior(latent_dim: int, device: torch.device):
