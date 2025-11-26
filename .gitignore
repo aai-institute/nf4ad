@@ -161,6 +161,8 @@ cython_debug/
  
 .DS_Store
 data/
+!src/nf4ad/data
+
 reports/
 nohup.out
 src/.DS_store
