@@ -48,6 +48,7 @@ class NonUSFlow(_BaseFlow):
         householder: int = 1,
         masktype: str = "checkerboard",
         device: str = "cpu",
+        clamp: float = 5.0,  # NEW: clamp parameter for MaskedAffineCoupling
         *args,
         **kwargs
     ):
@@ -59,6 +60,7 @@ class NonUSFlow(_BaseFlow):
         self.conditioner_args = conditioner_args
         self.prior_scale = prior_scale
         self.device = device
+        self.clamp = float(clamp)
 
         if masktype == "checkerboard":
             self.mask_Generator = NonUSFlow.create_checkerboard_mask
@@ -96,7 +98,7 @@ class NonUSFlow(_BaseFlow):
                 layers.append(block_affine_layer)
 
             # Here: use MaskedAffineCoupling instead of additive MaskedCoupling
-            coupling_layer = MaskedAffineCoupling(mask, conditioner_cls(**conditioner_args))
+            coupling_layer = MaskedAffineCoupling(mask, conditioner_cls(**conditioner_args), clamp=self.clamp)
             layers.append(coupling_layer)
 
             # Inverse affine transform if requested
