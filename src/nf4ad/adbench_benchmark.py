@@ -154,8 +154,10 @@ ADBENCH_CLASSICAL_DATASETS = [
 def load_adbench_dataset(
     dataset_name: str,
     data_dir: Path,
-    test_size: float = 0.5,
+    test_size: float = 0.3,
     random_state: int = 42,
+    contaminated_training: bool = False
+
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Load and split an ADBench dataset."""
     # Find the .npz file
@@ -179,6 +181,9 @@ def load_adbench_dataset(
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=test_size, random_state=random_state, stratify=y
     )
+    if not contaminated_training:
+        X_train = X_train[y_train == 0]
+        y_train = y_train[y_train == 0]
     
     # Standardize
     scaler = StandardScaler()
