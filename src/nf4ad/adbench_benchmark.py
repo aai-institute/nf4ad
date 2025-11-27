@@ -46,7 +46,7 @@ class BenchmarkConfig:
     data_dir: Path = Path("./data/adbench")
     output_dir: Path = Path("./results/adbench")
     random_state: int = 42
-    test_size: float = 0.5
+    test_size: float = 0.3
     n_jobs: int = 1
     verbose: bool = True
     save_models: bool = False
@@ -57,7 +57,8 @@ class BenchmarkConfig:
 class FlowConfig:
     """Configuration for Flow model."""
     coupling_blocks: int = 8
-    hidden_dim: int = 128
+    hidden_dim: int = 128  # Kept for backward compatibility, but c_hidden is preferred
+    c_hidden: Optional[List[int]] = None  # Direct specification of hidden layers for conditioner
     lr: float = 1e-3
     batch_size: int = 64
     epochs: int = 100
@@ -72,6 +73,13 @@ class FlowConfig:
     prior_scale: Optional[float] = 1.0
     masktype: str = "checkerboard"  # "checkerboard" or "channel"
     flow_type: str = "nonusflow"  # "nonusflow" or "usflow"
+    
+    def get_c_hidden(self) -> List[int]:
+        """Get c_hidden list, using explicit c_hidden if provided, otherwise using hidden_dim."""
+        if self.c_hidden is not None:
+            return self.c_hidden
+        # Fallback: create a list with two layers of hidden_dim
+        return [self.hidden_dim, self.hidden_dim]
 
 
 @dataclass
@@ -206,36 +214,67 @@ def create_nonusflow_model(n_features: int, config: FlowConfig, device: str) -> 
         torch.ones(n_features).to(device)
     )
     
-    class SimpleConditioner(nn.Module):
-        def __init__(self, in_dim, out_dim, hidden_dim):
-            super().__init__()
-            self.net = nn.Sequential(
-                nn.Linear(in_dim, hidden_dim),
-                nn.ReLU(),
-                nn.Linear(hidden_dim, hidden_dim),
-                nn.ReLU(),
-                nn.Linear(hidden_dim, out_dim),
-            )
-        
-        def forward(self, x):
-            return self.net(x)
+    # Import ConvNet from USFlows
+    try:
+        from src.usflows.networks import ConvNet
+        use_convnet = True
+    except ImportError:
+        use_convnet = False
     
-    flow = NonUSFlow(
-        in_dims=[n_features],
-        device=device,
-        coupling_blocks=config.coupling_blocks,
-        base_distribution=base_dist,
-        prior_scale=config.prior_scale,
-        affine_conjugation=config.affine_conjugation,
-        clamp=config.clamp,
-        conditioner_cls=SimpleConditioner,
-        conditioner_args={
-            'in_dim': n_features,
-            'out_dim': n_features * 2,
-            'hidden_dim': config.hidden_dim,
-        },
-        nonlinearity=nn.ReLU(),
-    )
+    if use_convnet:
+        # Use ConvNet which adapts to vector inputs automatically
+        c_hidden = config.get_c_hidden()
+        flow = NonUSFlow(
+            in_dims=[n_features],
+            device=device,
+            coupling_blocks=config.coupling_blocks,
+            base_distribution=base_dist,
+            prior_scale=config.prior_scale,
+            affine_conjugation=config.affine_conjugation,
+            clamp=config.clamp,
+            conditioner_cls=ConvNet,
+            conditioner_args={
+                'in_dims': [n_features],
+                'c_hidden': c_hidden,
+                'c_out': n_features * 2,
+                'nonlinearity': nn.ReLU(),
+                'normalize_layers': True,
+                'gating': True,
+            },
+            nonlinearity=nn.ReLU(),
+        )
+    else:
+        # Fallback to simple MLP conditioner
+        class SimpleConditioner(nn.Module):
+            def __init__(self, in_dim, out_dim, hidden_dim):
+                super().__init__()
+                self.net = nn.Sequential(
+                    nn.Linear(in_dim, hidden_dim),
+                    nn.ReLU(),
+                    nn.Linear(hidden_dim, hidden_dim),
+                    nn.ReLU(),
+                    nn.Linear(hidden_dim, out_dim),
+                )
+            
+            def forward(self, x):
+                return self.net(x)
+        
+        flow = NonUSFlow(
+            in_dims=[n_features],
+            device=device,
+            coupling_blocks=config.coupling_blocks,
+            base_distribution=base_dist,
+            prior_scale=config.prior_scale,
+            affine_conjugation=config.affine_conjugation,
+            clamp=config.clamp,
+            conditioner_cls=SimpleConditioner,
+            conditioner_args={
+                'in_dim': n_features,
+                'out_dim': n_features * 2,
+                'hidden_dim': config.hidden_dim,
+            },
+            nonlinearity=nn.ReLU(),
+        )
     
     return flow
 
@@ -255,39 +294,72 @@ def create_usflow_model(n_features: int, config: FlowConfig, device: str):
         torch.ones(n_features).to(device)
     )
     
-    class SimpleConditioner(nn.Module):
-        def __init__(self, in_dims, **kwargs):
-            super().__init__()
-            in_dim = in_dims[0]
-            hidden_dim = kwargs.get('hidden_dim', 128)
-            self.net = nn.Sequential(
-                nn.Linear(in_dim, hidden_dim),
-                nn.ReLU(),
-                nn.Linear(hidden_dim, hidden_dim),
-                nn.ReLU(),
-                nn.Linear(hidden_dim, in_dim),  # USFlow expects output = input dim for additive coupling
-            )
-        
-        def forward(self, x):
-            return self.net(x)
+    # Import ConvNet from USFlows
+    try:
+        from src.usflows.networks import ConvNet
+        use_convnet = True
+    except ImportError:
+        use_convnet = False
     
-    flow = USFlow(
-        in_dims=[n_features],
-        coupling_blocks=config.coupling_blocks,
-        base_distribution=base_dist,
-        prior_scale=config.prior_scale,
-        affine_conjugation=config.affine_conjugation,
-        lu_transform=config.lu_transform,
-        householder=config.householder,
-        masktype=config.masktype,
-        conditioner_cls=SimpleConditioner,
-        conditioner_args={
-            'in_dims': [n_features],
-            'hidden_dim': config.hidden_dim,
-        },
-        nonlinearity=nn.ReLU(),
-        device=device,
-    )
+    if use_convnet:
+        # Use ConvNet which adapts to vector inputs automatically
+        c_hidden = config.get_c_hidden()
+        flow = USFlow(
+            in_dims=[n_features],
+            coupling_blocks=config.coupling_blocks,
+            base_distribution=base_dist,
+            prior_scale=config.prior_scale,
+            affine_conjugation=config.affine_conjugation,
+            lu_transform=config.lu_transform,
+            householder=config.householder,
+            masktype=config.masktype,
+            conditioner_cls=ConvNet,
+            conditioner_args={
+                'in_dims': [n_features],
+                'c_hidden': c_hidden,
+                'c_out': n_features,  # USFlow uses additive coupling
+                'nonlinearity': nn.ReLU(),
+                'normalize_layers': True,
+                'gating': True,
+            },
+            nonlinearity=nn.ReLU(),
+            device=device,
+        )
+    else:
+        # Fallback to simple MLP conditioner
+        class SimpleConditioner(nn.Module):
+            def __init__(self, in_dims, **kwargs):
+                super().__init__()
+                in_dim = in_dims[0]
+                hidden_dim = kwargs.get('hidden_dim', 128)
+                self.net = nn.Sequential(
+                    nn.Linear(in_dim, hidden_dim),
+                    nn.ReLU(),
+                    nn.Linear(hidden_dim, hidden_dim),
+                    nn.ReLU(),
+                    nn.Linear(hidden_dim, in_dim),  # USFlow expects output = input dim for additive coupling
+                )
+            
+            def forward(self, x):
+                return self.net(x)
+        
+        flow = USFlow(
+            in_dims=[n_features],
+            coupling_blocks=config.coupling_blocks,
+            base_distribution=base_dist,
+            prior_scale=config.prior_scale,
+            affine_conjugation=config.affine_conjugation,
+            lu_transform=config.lu_transform,
+            householder=config.householder,
+            masktype=config.masktype,
+            conditioner_cls=SimpleConditioner,
+            conditioner_args={
+                'in_dims': [n_features],
+                'hidden_dim': config.hidden_dim,
+            },
+            nonlinearity=nn.ReLU(),
+            device=device,
+        )
     
     return flow
 
