@@ -277,9 +277,9 @@ def run_vaeflow_on_dataset(
         decoder_hidden_dims=[128, 256, 512],  # Fixed architecture
         dropout=0.2,
         use_batchnorm=True,
-        epochs=100,
+        epochs=1000,
         batch_size=64,
-        lr=1e-3,
+        lr=1e-4,
         patience=10,
         verbose=True,
         device=device,
@@ -401,9 +401,9 @@ def run_full_benchmark(
                 "decoder_hidden_dims": [128, 256, 512],
                 "dropout": 0.2,
                 "use_batchnorm": True,
-                "epochs": 100,
+                "epochs": 1000,
                 "batch_size": 64,
-                "lr": 1e-3,
+                "lr": 1e-4,
                 "patience": 10,
                 "arch": arch,
             }
