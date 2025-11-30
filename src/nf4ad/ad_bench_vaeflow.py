@@ -254,11 +254,14 @@ def run_vaeflow_on_dataset(
     X_train, X_test, y_train, y_test = train_test_split(
         X,
         y,
-        test_size=0.5,
+        test_size=0.3,
         random_state=RANDOM_STATE,
         stratify=y,
     )
     
+    X_train = X_train[y_train == 0]
+    y_train = y_train[y_train == 0]
+
     # Standardize
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
