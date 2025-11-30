@@ -5,13 +5,17 @@ import torch
 import torch.nn as nn
 import numpy as np
 from typing import Optional, List
-from .vaeflow import VAEFlow, SimpleDecoder
+from .vaeflow import VAEFlow, VectorEncoder, VectorDecoder
 from .flows import Flow
 
 
 class ADBenchVAEFlow:
     """
-    Wrapper for VAEFlow to work with ADBench's interface.
+    Wrapper for VAEFlow to work with ADBench's interface for tabular/vector data.
+    
+    This class is designed to work exclusively with vector (tabular) data from
+    ADBench classical datasets. It uses MLP-based encoder and decoder architectures
+    suitable for anomaly detection benchmarks.
     
     ADBench expects:
     - fit(X_train, y_train=None)
@@ -21,11 +25,13 @@ class ADBenchVAEFlow:
     def __init__(
         self,
         flow_prior: Flow,
+        input_dim: int,
         latent_dim: int = 64,
-        encoder_arch: str = 'resnet18',
-        encoder_trainable: bool = False,
-        input_channels: int = 1,
-        input_size: tuple = (28, 28),
+        encoder_hidden_dims: Optional[List[int]] = None,
+        decoder_hidden_dims: Optional[List[int]] = None,
+        dropout: float = 0.2,
+        use_batchnorm: bool = True,
+        output_activation: Optional[str] = None,
         sigma_min: float = 0.1,
         prior_shape: Optional[tuple] = None,
         batch_size: int = 32,
@@ -41,11 +47,13 @@ class ADBenchVAEFlow:
         """
         Args:
             flow_prior: Flow model for the latent prior
+            input_dim: Dimensionality of input vectors
             latent_dim: Dimensionality of latent space
-            encoder_arch: Architecture for encoder (if using pretrained)
-            encoder_trainable: Whether to train encoder weights
-            input_channels: Number of input channels (1 for grayscale, 3 for RGB)
-            input_size: Spatial size of input images (H, W)
+            encoder_hidden_dims: Hidden layer dimensions for encoder (default: [512, 256, 128])
+            decoder_hidden_dims: Hidden layer dimensions for decoder (default: [128, 256, 512])
+            dropout: Dropout probability for encoder/decoder
+            use_batchnorm: Whether to use batch normalization
+            output_activation: Output activation ('sigmoid', 'tanh', or None)
             sigma_min: Minimum sigma for reconstruction likelihood
             prior_shape: Shape for flow prior (if needed)
             batch_size: Training batch size
@@ -58,11 +66,8 @@ class ADBenchVAEFlow:
             patience: Number of epochs with no improvement for early stopping (None to disable)
             min_delta: Minimum change in loss to qualify as an improvement
         """
+        self.input_dim = input_dim
         self.latent_dim = latent_dim
-        self.encoder_arch = encoder_arch
-        self.encoder_trainable = encoder_trainable
-        self.input_channels = input_channels
-        self.input_size = input_size
         self.sigma_min = sigma_min
         self.prior_shape = prior_shape
         self.batch_size = batch_size
@@ -85,21 +90,23 @@ class ADBenchVAEFlow:
         else:
             self.device = torch.device(device)
         
-        # Create custom encoder/decoder for tabular/small image data
-        if input_channels == 1 or input_size[0] < 224:
-            encoder = self._create_simple_encoder()
-            decoder = SimpleDecoder(
-                latent_dim=latent_dim,
-                output_channels=input_channels,
-                output_size=input_size,
-            )
-        else:
-            encoder = None  # Use default pretrained
-            decoder = SimpleDecoder(
-                latent_dim=latent_dim,
-                output_channels=input_channels,
-                output_size=input_size,
-            )
+        # Create encoder and decoder for vector data
+        encoder = VectorEncoder(
+            input_dim=input_dim,
+            latent_dim=latent_dim,
+            hidden_dims=encoder_hidden_dims,
+            dropout=dropout,
+            use_batchnorm=use_batchnorm,
+        )
+        
+        decoder = VectorDecoder(
+            latent_dim=latent_dim,
+            output_dim=input_dim,
+            hidden_dims=decoder_hidden_dims,
+            dropout=dropout,
+            use_batchnorm=use_batchnorm,
+            output_activation=output_activation,
+        )
         
         # Initialize VAEFlow model
         self.model = VAEFlow(
@@ -107,8 +114,6 @@ class ADBenchVAEFlow:
             encoder=encoder,
             decoder=decoder,
             latent_dim=latent_dim,
-            encoder_arch=encoder_arch,
-            encoder_trainable=encoder_trainable,
             sigma_min=sigma_min,
             prior_shape=prior_shape,
         )
@@ -116,47 +121,13 @@ class ADBenchVAEFlow:
         
         # Store training history
         self.training_losses_: Optional[List[float]] = None
-        
-    def _create_simple_encoder(self) -> nn.Module:
-        """Create a simple CNN encoder for small images or tabular data."""
-        class SimpleEncoder(nn.Module):
-            def __init__(self, input_channels, input_size, latent_dim):
-                super().__init__()
-                h, w = input_size
-                self.conv_layers = nn.Sequential(
-                    nn.Conv2d(input_channels, 32, 3, stride=2, padding=1),
-                    nn.ReLU(),
-                    nn.Conv2d(32, 64, 3, stride=2, padding=1),
-                    nn.ReLU(),
-                    nn.Conv2d(64, 128, 3, stride=2, padding=1),
-                    nn.ReLU(),
-                )
-                # Calculate flattened size after convolutions.
-                # We use a dummy forward pass to determine the output shape of the conv layers,
-                # since the output size depends on the input size and convolution parameters.
-                with torch.no_grad():
-                    dummy = torch.zeros(1, input_channels, h, w)
-                    out = self.conv_layers(dummy)
-                    self.conv_output_shape = out.shape  # Store intermediate output shape for clarity
-                    self.flat_size = out.view(1, -1).shape[1]  # Flatten to get feature size for FC layers
-                self.fc_mu = nn.Linear(self.flat_size, latent_dim)
-                self.fc_logvar = nn.Linear(self.flat_size, latent_dim)
-                
-            def forward(self, x):
-                features = self.conv_layers(x)
-                features = features.view(features.size(0), -1)
-                mu = self.fc_mu(features)
-                logvar = self.fc_logvar(features)
-                return mu, logvar
-        
-        return SimpleEncoder(self.input_channels, self.input_size, self.latent_dim)
     
     def fit(self, X_train: np.ndarray, y_train: Optional[np.ndarray] = None) -> 'ADBenchVAEFlow':
         """
         Fit the model on training data with early stopping.
         
         Args:
-            X_train: Training data, shape (n_samples, n_features) or (n_samples, C, H, W)
+            X_train: Training data, shape (n_samples, n_features)
             y_train: Labels (ignored, only normal data expected)
             
         Returns:
@@ -165,10 +136,11 @@ class ADBenchVAEFlow:
         # Convert to tensor
         X_tensor = torch.FloatTensor(X_train)
         
-        # Reshape if needed (flatten -> image)
-        if X_tensor.dim() == 2:
-            n_samples = X_tensor.shape[0]
-            X_tensor = X_tensor.view(n_samples, self.input_channels, *self.input_size)
+        # Ensure 2D shape (batch_size, features)
+        if X_tensor.dim() == 1:
+            X_tensor = X_tensor.unsqueeze(0)
+        elif X_tensor.dim() > 2:
+            X_tensor = X_tensor.view(X_tensor.size(0), -1)
         
         if self.verbose:
             print(f"Training VAEFlow on {len(X_tensor)} samples...")
@@ -251,7 +223,7 @@ class ADBenchVAEFlow:
         Compute anomaly scores for test data.
         
         Args:
-            X_test: Test data, shape (n_samples, n_features) or (n_samples, C, H, W)
+            X_test: Test data, shape (n_samples, n_features)
             
         Returns:
             Anomaly scores, shape (n_samples,)
@@ -259,10 +231,11 @@ class ADBenchVAEFlow:
         # Convert to tensor
         X_tensor = torch.FloatTensor(X_test)
         
-        # Reshape if needed
-        if X_tensor.dim() == 2:
-            n_samples = X_tensor.shape[0]
-            X_tensor = X_tensor.view(n_samples, self.input_channels, *self.input_size)
+        # Ensure 2D shape
+        if X_tensor.dim() == 1:
+            X_tensor = X_tensor.unsqueeze(0)
+        elif X_tensor.dim() > 2:
+            X_tensor = X_tensor.view(X_tensor.size(0), -1)
         
         X_tensor = X_tensor.to(self.device)
         
@@ -288,74 +261,6 @@ class ADBenchVAEFlow:
         if threshold is None:
             threshold = np.median(scores)
         return (scores > threshold).astype(int)
-
-
-class ADBenchVAEFlowTabular(ADBenchVAEFlow):
-    """
-    Specialized wrapper for tabular data from ADBench.
-    
-    Automatically handles reshaping tabular data to/from image format.
-    """
-    
-    def __init__(
-        self,
-        flow_prior: Flow,
-        n_features: int,
-        latent_dim: int = 64,
-        sigma_min: float = 0.1,
-        prior_shape: Optional[tuple] = None,
-        batch_size: int = 32,
-        epochs: int = 50,
-        lr: float = 1e-3,
-        beta: float = 1.0,
-        device: Optional[str] = None,
-        gradient_clip: Optional[float] = None,
-        verbose: bool = True,
-    ):
-        """
-        Args:
-            n_features: Number of input features (will be reshaped to square image)
-        """
-        # Compute square image size
-        img_size = int(np.ceil(np.sqrt(n_features)))
-        self.n_features = n_features
-        self.img_size = img_size
-        
-        super().__init__(
-            flow_prior=flow_prior,
-            latent_dim=latent_dim,
-            encoder_trainable=True,
-            input_channels=1,
-            input_size=(img_size, img_size),
-            sigma_min=sigma_min,
-            prior_shape=prior_shape,
-            batch_size=batch_size,
-            epochs=epochs,
-            lr=lr,
-            beta=beta,
-            device=device,
-            gradient_clip=gradient_clip,
-            verbose=verbose,
-        )
-    
-    def _tabular_to_image(self, X: np.ndarray) -> np.ndarray:
-        """Convert tabular data to image format with padding."""
-        n_samples = X.shape[0]
-        img_arr = np.zeros((n_samples, 1, self.img_size, self.img_size), dtype=np.float32)
-        for i in range(n_samples):
-            flat = X[i, :self.n_features]
-            img_arr[i, 0].flat[:self.n_features] = flat
-        return img_arr
-    
-    def fit(self, X_train: np.ndarray, y_train: Optional[np.ndarray] = None):
-        """Fit on tabular data."""
-        X_img = self._tabular_to_image(X_train)
-        return super().fit(X_img, y_train)
-    
-    def predict_score(self, X_test: np.ndarray) -> np.ndarray:
-        """Compute anomaly scores for tabular data."""
-        X_img = self._tabular_to_image(X_test)
-        return super().predict_score(X_img)
 
 
 class ADBenchFlow:

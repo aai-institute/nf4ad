@@ -2,7 +2,7 @@ from asyncio import sleep
 import torch
 import torch.nn as nn
 import torchvision.models as models
-from typing import Optional, Iterable, Tuple
+from typing import Optional, Iterable, Tuple, List
 from .flows import Flow
 import math
 import numpy as np
@@ -16,6 +16,150 @@ from sklearn.metrics import (
     recall_score,
     f1_score,
 )
+
+
+class VectorEncoder(nn.Module):
+    """MLP-based encoder for vector/tabular data.
+    
+    Designed for ADBench classical datasets with solid baseline architecture.
+    Uses a progressive dimensionality reduction with batch normalization and dropout.
+    
+    Args:
+        input_dim: Dimension of input vectors
+        latent_dim: Dimension of latent space
+        hidden_dims: List of hidden layer dimensions (default: [512, 256, 128])
+        dropout: Dropout probability (default: 0.2)
+        use_batchnorm: Whether to use batch normalization (default: True)
+    """
+    
+    def __init__(
+        self,
+        input_dim: int,
+        latent_dim: int = 64,
+        hidden_dims: Optional[List[int]] = None,
+        dropout: float = 0.2,
+        use_batchnorm: bool = True,
+    ):
+        super().__init__()
+        
+        if hidden_dims is None:
+            hidden_dims = [512, 256, 128]
+        
+        self.input_dim = input_dim
+        self.latent_dim = latent_dim
+        
+        # Build encoder layers
+        layers = []
+        prev_dim = input_dim
+        
+        for hidden_dim in hidden_dims:
+            layers.append(nn.Linear(prev_dim, hidden_dim))
+            if use_batchnorm:
+                layers.append(nn.BatchNorm1d(hidden_dim))
+            layers.append(nn.ReLU())
+            if dropout > 0:
+                layers.append(nn.Dropout(dropout))
+            prev_dim = hidden_dim
+        
+        self.encoder = nn.Sequential(*layers)
+        
+        # Project to latent space (mu and logvar)
+        self.fc_mu = nn.Linear(prev_dim, latent_dim)
+        self.fc_logvar = nn.Linear(prev_dim, latent_dim)
+    
+    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Args:
+            x: Input tensor of shape (batch_size, input_dim)
+        
+        Returns:
+            mu: Mean of latent distribution (batch_size, latent_dim)
+            logvar: Log variance of latent distribution (batch_size, latent_dim)
+        """
+        # Flatten if needed (handle both (B, D) and (B, 1, D) shapes)
+        if x.dim() > 2:
+            x = x.view(x.size(0), -1)
+        
+        features = self.encoder(x)
+        mu = self.fc_mu(features)
+        logvar = self.fc_logvar(features)
+        return mu, logvar
+
+
+class VectorDecoder(nn.Module):
+    """MLP-based decoder for vector/tabular data.
+    
+    Mirrors the encoder architecture with progressive dimensionality expansion.
+    Suitable for ADBench classical datasets.
+    
+    Args:
+        latent_dim: Dimension of latent space
+        output_dim: Dimension of output vectors
+        hidden_dims: List of hidden layer dimensions (default: [128, 256, 512])
+        dropout: Dropout probability (default: 0.2)
+        use_batchnorm: Whether to use batch normalization (default: True)
+        output_activation: Optional output activation ('sigmoid', 'tanh', or None)
+    """
+    
+    def __init__(
+        self,
+        latent_dim: int,
+        output_dim: int,
+        hidden_dims: Optional[List[int]] = None,
+        dropout: float = 0.2,
+        use_batchnorm: bool = True,
+        output_activation: Optional[str] = None,
+    ):
+        super().__init__()
+        
+        if hidden_dims is None:
+            hidden_dims = [128, 256, 512]
+        
+        self.latent_dim = latent_dim
+        self.output_dim = output_dim
+        
+        # Build decoder layers
+        layers = []
+        prev_dim = latent_dim
+        
+        for hidden_dim in hidden_dims:
+            layers.append(nn.Linear(prev_dim, hidden_dim))
+            if use_batchnorm:
+                layers.append(nn.BatchNorm1d(hidden_dim))
+            layers.append(nn.ReLU())
+            if dropout > 0:
+                layers.append(nn.Dropout(dropout))
+            prev_dim = hidden_dim
+        
+        self.decoder = nn.Sequential(*layers)
+        
+        # Output layer
+        self.fc_out = nn.Linear(prev_dim, output_dim)
+        
+        # Optional output activation
+        self.output_activation = None
+        if output_activation == 'sigmoid':
+            self.output_activation = nn.Sigmoid()
+        elif output_activation == 'tanh':
+            self.output_activation = nn.Tanh()
+        elif output_activation is not None:
+            raise ValueError(f"Unknown output_activation: {output_activation}")
+    
+    def forward(self, z: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            z: Latent tensor of shape (batch_size, latent_dim)
+        
+        Returns:
+            x_recon: Reconstructed tensor of shape (batch_size, output_dim)
+        """
+        x = self.decoder(z)
+        x = self.fc_out(x)
+        
+        if self.output_activation is not None:
+            x = self.output_activation(x)
+        
+        return x
 
 
 class PreTrainedEncoder(nn.Module):
